@@ -31,9 +31,21 @@ export function normalize(payload, now=new Date()) {
       // Identity includes the full published URL: same slug may have several providers.
       signals.push({id:hash(url),name:String(embed.embed_name || embed.name || `Opción ${i+1}`).slice(0,100),url,lang:String(embed.lang || '')});
     }
-    events.push({id,title:match,league,startsAt:start.toISOString(),time:hour ? start.toLocaleTimeString('en-GB',{timeZone:'America/Caracas',hour:'2-digit',minute:'2-digit'}) : '--:--',signals});
+    events.push({id,title:match,league,startsAt:start.toISOString(),time:hour ? start.toLocaleTimeString('en-GB',{timeZone:'America/Caracas',hour:'2-digit',minute:'2-digit'}) : '--:--',signals:withAlternatives(signals)});
   }
   return events;
+}
+export function withAlternatives(signals) {
+  const result=[...signals],seen=new Set(signals.map(s=>s.url));
+  // Explicit channel aliases: never infer a different event or a numbered Disney feed.
+  const supported=new Set(['espn','espn2','espn3','espn4','espn5','espn6','espn7','espnpremium','foxsports','foxsports2','foxsports3','dsports','dsports2','dsportsplus','tntsports','tycsports','liga1max']);
+  for(const signal of signals){
+    const source=new URL(signal.url),stream=source.searchParams.get('stream');
+    if(!['la18hd.su','www.la18hd.su'].includes(source.hostname)||!supported.has(stream))continue;
+    const url='https://tvf90.com/5.php?stream='+encodeURIComponent(stream);
+    if(!seen.has(url)){result.unshift({id:hash(url),name:signal.name+' · alternativa',url,lang:signal.lang});seen.add(url);}
+  }
+  return result;
 }
 export function merge(feeds) {
   const events=new Map();
@@ -55,22 +67,22 @@ function signingKey() {
   if (!key || key.length<32) throw Error('HLS_PROXY_SECRET_REQUIRED');
   return key;
 }
-export function grant(url,referer='',expiry=Math.floor(Date.now()/1000)+21600) {
+export function grant(url,referer='',expiry=Math.floor(Date.now()/1000)+21600,key=signingKey()) {
   const payload=Buffer.from(JSON.stringify({url,referer,expiry})).toString('base64url');
-  return payload+'.'+createHmac('sha256',signingKey()).update(payload).digest('base64url');
+  return payload+'.'+createHmac('sha256',key).update(payload).digest('base64url');
 }
-export function verify(token) {
+export function verify(token,key=signingKey()) {
   if (typeof token!=='string'||token.length>12000) throw Error('INVALID_GRANT');
   const [payload,sig,extra]=token.split('.');
-  const expected=createHmac('sha256',signingKey()).update(payload || '').digest();
+  const expected=createHmac('sha256',key).update(payload || '').digest();
   const actual=Buffer.from(sig || '','base64url');
   if(extra || actual.length!==expected.length || !timingSafeEqual(expected,actual)) throw Error('INVALID_GRANT');
   const value=JSON.parse(Buffer.from(payload,'base64url').toString());
   if(!Number.isFinite(value.expiry)||value.expiry< Date.now()/1000 || typeof value.url!=='string' || typeof value.referer!=='string')throw Error('EXPIRED_GRANT');
   return value;
 }
-export function manifest(text,base,referer,expiry) {
+export function manifest(text,base,referer,expiry,key=signingKey()) {
   if(!text.trimStart().startsWith('#EXTM3U')||text.length>1000000)throw Error('INVALID_MANIFEST');
-  const local=value=>'/api/media?t='+encodeURIComponent(grant(new URL(value,base).href,referer,expiry));
+  const local=value=>'/api/media?t='+encodeURIComponent(grant(new URL(value,base).href,referer,expiry,key));
   return text.split(/\r?\n/).map(line=>line.trim()&&!line.startsWith('#') ? local(line.trim()) : line.replace(/URI="([^"]+)"/g,(_,uri)=>`URI="${local(uri)}"`)).join('\n');
 }

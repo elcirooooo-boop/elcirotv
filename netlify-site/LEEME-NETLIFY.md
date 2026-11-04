@@ -11,9 +11,7 @@ Esta versión funciona con archivos estáticos, Netlify Functions (Node.js) y Ne
    - Publish directory: `netlify-site/dist` desde la raíz (`dist` dentro de la base).
    - Functions: `netlify-site/functions` desde la raíz.
    - Node.js: 22.
-3. Antes de desplegar, añade en **Project configuration → Environment variables**, con alcance **Functions**:
-   - `HLS_PROXY_SECRET`: un valor aleatorio de al menos 32 caracteres. Firma los permisos de reproducción. Debe mantenerse estable entre despliegues.
-   Puedes generar cada valor en tu equipo con `node -p "require('node:crypto').randomBytes(32).toString('hex')"`. No subas estas claves al repositorio.
+3. La clave privada de reproducción se genera y guarda automáticamente en Netlify Blobs. Opcionalmente puedes configurar `HLS_PROXY_SECRET` (al menos 32 caracteres) en Functions para usar tu propia clave.
 4. Publica el proyecto. Netlify entrega el dominio `nombre.netlify.app`; después puedes añadir un dominio propio.
 
 No sirve arrastrar solamente `dist` a Netlify Drop: faltarán las funciones. Usa la importación del repositorio o Netlify CLI con funciones.

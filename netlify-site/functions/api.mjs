@@ -4,6 +4,7 @@ import {agenda} from '../lib/agenda.mjs';
 import {publicAgenda,grant,verify,manifest} from '../lib/core.mjs';
 import {resolve,request,read} from '../lib/network.mjs';
 import {bucket,viewerCounts} from '../lib/viewers.mjs';
+import {playbackKey} from '../lib/playback-key.mjs';
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 export default async function handler(req) {
   const url=new URL(req.url),action=url.pathname.split('/').filter(Boolean).at(-1);
@@ -15,14 +16,17 @@ export default async function handler(req) {
       const data=await agenda(),source=data.events.flatMap(e=>e.signals).find(s=>s.id===url.searchParams.get('source'));
       if(!source)return json({error:'Esta señal ya no está publicada. Actualiza la agenda.'},404);
       const resolved=await resolve(source.url);
-      return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer)),name:source.name});
+      return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackKey())),name:source.name});
     }
     if(action==='media'){
-      let permission;try{permission=verify(url.searchParams.get('t'));}catch{return json({error:'La sesión venció. Vuelve a abrir la señal.'},403);}
+      const token=url.searchParams.get('t');
+      if(!token||!token.includes('.'))return json({error:'La sesión venció. Vuelve a abrir la señal.'},403);
+      const key=await playbackKey();
+      let permission;try{permission=verify(token,key);}catch{return json({error:'La sesión venció. Vuelve a abrir la señal.'},403);}
       const {response,url:finalURL}=await request(permission.url,permission.referer,req.headers.get('range')||'');
       const type=String(response.headers['content-type']||'application/octet-stream');
       if(response.statusCode<200||response.statusCode>=300||/html|javascript|json|svg/i.test(type)){response.resume();return json({error:'Señal no disponible.'},502);}
-      if(/mpegurl/i.test(type)||new URL(finalURL).pathname.endsWith('.m3u8'))return new Response(manifest(await read(response,1000000),finalURL,permission.referer,permission.expiry),{headers:{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'}});
+      if(/mpegurl/i.test(type)||new URL(finalURL).pathname.endsWith('.m3u8'))return new Response(manifest(await read(response,1000000),finalURL,permission.referer,permission.expiry,key),{headers:{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'}});
       const headers={'Content-Type':type,'Cache-Control':'private, max-age=5','X-Content-Type-Options':'nosniff'};
       for(const key of ['content-range','accept-ranges'])if(response.headers[key])headers[key]=response.headers[key];
       // HLS uses short segments; stop before the platform's streamed response limit.
