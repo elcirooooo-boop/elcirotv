@@ -1,10 +1,11 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
+import {createLivePlayer} from './live-player.js';
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,watchdog;
+let playerGeneration=0,player;
 let updateMatchShare=()=>{};
-let data,hls,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
+let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 async function api(path,options){const r=await fetch('/api/'+path,options);const value=await r.json();if(!r.ok)throw Error(value.error||'No disponible.');return value;}
 function link(event){return matchPath(event);}
@@ -15,7 +16,7 @@ function heartbeat(){
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){playerGeneration++;clearInterval(watchdog);lastProgress=0;hls?.destroy();hls=null;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
+function stop(){playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
@@ -26,61 +27,22 @@ async function play(signal,signals){
   updateMatchShare(signal);
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
-  const status=document.querySelector('#signalStatus'),excluded=new Set();
-  let attempts=0,sourceKey='',connecting=false,started=Date.now(),wanted=true,finished=false,progressTime=-1;
+  const status=document.querySelector('#signalStatus');
+  video=document.querySelector('video');
   const active=()=>playerGeneration===generation&&selected===identity;
-  const recover=()=>{
-    if(!active()||connecting||finished)return;
-    lastProgress=0;void heartbeat();
-    if(attempts>=5){finished=true;status.textContent='El canal no está disponible en este momento. Puedes reintentar más tarde.';return;}
-    if(attempts>1&&sourceKey)excluded.add(sourceKey);
-    void connect();
-  };
-  async function connect(){
-    if(!active())return;connecting=true;attempts++;started=Date.now();
-    status.textContent=attempts===1?'Conectando con '+signal.name+'…':'Recuperando '+signal.name+'…';
-    hls?.destroy();hls=null;
-    const oldVideo=document.querySelector('video'),current=oldVideo.cloneNode(false);oldVideo.pause();oldVideo.removeAttribute('src');oldVideo.load();oldVideo.replaceWith(current);video=current;progressTime=-1;
-    current.addEventListener('timeupdate',()=>{if(active()&&current===video&&current.currentTime!==progressTime){progressTime=current.currentTime;lastProgress=Date.now();}});
-    current.addEventListener('playing',()=>{if(active()&&current===video){wanted=true;lastProgress=Date.now();status.textContent=signal.name+' · Reproduciendo';void heartbeat().then(refreshViewers);}});
-    current.addEventListener('pause',()=>{if(active()&&current===video){wanted=false;void heartbeat().then(refreshViewers);}});
-    current.addEventListener('play',()=>{if(active()&&current===video){wanted=true;started=Date.now();}});
-    current.addEventListener('ended',recover);
-    current.addEventListener('error',recover);
-    try{
-      const source=await api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent([...excluded].join(',')));
-      if(!active())return;sourceKey=source.sourceKey||'';
-      connecting=false;wanted=true;started=Date.now();
-      const requestPlay=()=>{
-        if(!active()||current!==video)return;
-        void current.play().catch(error=>{if(!active()||current!==video)return;if(error.name==='NotAllowedError'){wanted=false;status.textContent='Toca reproducir para ver '+signal.name+'.';}else if(error.name!=='AbortError')recover();});
-      };
-      // Chromium also reports native HLS support. Prefer the tested MSE engine
-      // whenever available rather than treating canPlayType("maybe") as proof.
-      if(window.Hls?.isSupported()){
-        const instance=new window.Hls({maxBufferLength:25,maxMaxBufferLength:45});hls=instance;
-        let mediaRecoveryUsed=false;
-        current.dataset.engine='hls.js';
-        instance.on(window.Hls.Events.ERROR,(_,error)=>{
-          if(!active()||current!==video||hls!==instance||!error.fatal)return;
-          if(error.type===window.Hls.ErrorTypes?.MEDIA_ERROR&&!mediaRecoveryUsed){mediaRecoveryUsed=true;instance.recoverMediaError();return;}
-          recover();
-        });
-        instance.on(window.Hls.Events.MANIFEST_PARSED,requestPlay);
-        instance.on(window.Hls.Events.MEDIA_ATTACHED,()=>{if(active()&&current===video&&hls===instance)instance.loadSource(source.url);});
-        instance.attachMedia(current);
-      }else if(current.canPlayType('application/vnd.apple.mpegurl')){
-        current.dataset.engine='native';
-        current.src=source.url;requestPlay();
-      }else{finished=true;status.textContent='Este navegador no admite la reproducción.';return;}
-    }catch(error){if(active()){connecting=false;finished=true;status.textContent=error.message;}}
-  }
+  player=createLivePlayer({
+    video,Hls:window.Hls,
+    resolveSource:(excluded,abortSignal)=>api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent(excluded.join(',')),{signal:abortSignal}),
+    onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
+    onProgress:()=>{if(active())lastProgress=Date.now();},
+    onState:()=>{if(active())void heartbeat().then(refreshViewers);},
+  });
   document.querySelector('#retry').onclick=()=>play(signal,signals);
   document.querySelector('#fullscreen').onclick=()=>{if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};
-  watchdog=setInterval(()=>{if(active()&&wanted&&!connecting&&Date.now()-Math.max(lastProgress,started)>25000)recover();},3000);
-  await connect();
+  await player.start();
   if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
 }
+
 function chooser(event,signals){
   main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${event.time}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
