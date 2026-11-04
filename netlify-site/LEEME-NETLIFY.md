@@ -47,6 +47,8 @@ El servicio prepara los dos fragmentos siguientes de la misma fuente en paralelo
 
 El servicio web usa un trabajador Gunicorn con 24 hilos para compartir esa caché entre las conexiones. No aumentar los procesos sin añadir primero una caché compartida entre procesos: un fragmento preparado por un trabajador puede haber desaparecido del origen cuando otro intenta volver a descargarlo. Las denegaciones HTTP 401/403 del origen se conservan en listas y fragmentos para que el cliente renueve la sesión, en lugar de reintentar un enlace vencido como si fuera un fallo 502 temporal.
 
+Al arrancar, HLS.js intenta acumular un segundo de video; esta preparación añade como máximo un segundo de espera y no exige terminar de descargar el fragmento. Si la reproducción se detiene ante un hueco de hasta un segundo y el siguiente rango ya está descargado, el cliente avanza a ese rango sin renovar la sesión. No realiza ese ajuste en pausa ni atraviesa huecos mayores. Las promesas de reproducción de sesiones anteriores no pueden detener una sesión recuperada.
+
 Documentación: [Functions](https://docs.netlify.com/build/functions/overview/), [límites de respuesta](https://docs.netlify.com/build/functions/api/), [Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/).
 
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.

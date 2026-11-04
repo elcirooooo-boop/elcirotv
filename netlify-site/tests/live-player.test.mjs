@@ -2,19 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLivePlayer} from '../public/live-player.js';
 const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve();};
-function harness({mse=true,resolve,autoplay=true}={}){
+function harness({mse=true,resolve,autoplay=true,ranges=[[0,3]]}={}){
   let clock=1000,next=1;const jobs=new Map(),players=[],calls=[],statuses=[];
   const timers={setTimeout(fn,ms){const id=next++;jobs.set(id,{fn,at:clock+ms});return id;},clearTimeout(id){jobs.delete(id);},setInterval(fn,ms){const id=next++;jobs.set(id,{fn,at:clock+ms,repeat:ms});return id;},clearInterval(id){jobs.delete(id);}};
   async function advance(ms){const end=clock+ms;while(true){const due=[...jobs].filter(([,j])=>j.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;const [id,j]=due;clock=j.at;if(j.repeat)j.at+=j.repeat;else jobs.delete(id);j.fn();await settle();}clock=end;await settle();}
   const handlers=new Map();
   const video={dataset:{},currentTime:0,paused:true,ended:false,error:null,volume:.4,muted:true,loads:0,plays:0,
+    ranges,buffered:{get length(){return video.ranges.length;},start:i=>video.ranges[i][0],end:i=>video.ranges[i][1]},
     addEventListener(name,fn){if(!handlers.has(name))handlers.set(name,new Set());handlers.get(name).add(fn);},removeEventListener(name,fn){handlers.get(name)?.delete(fn);},
     emit(name){for(const fn of handlers.get(name)||[])fn();},
     removeAttribute(){},load(){this.loads++;if(!this.paused){this.paused=true;this.emit('pause');}this.currentTime=0;},
     canPlayType(){return 'maybe';},play(){this.plays++;if(!autoplay)return Promise.reject(Object.assign(new Error(),{name:'NotAllowedError'}));this.paused=false;this.emit('play');return Promise.resolve();},
   };
   class Hls{
-    static isSupported(){return mse;}static Events={ERROR:'error',MEDIA_ATTACHED:'attached',MANIFEST_PARSED:'manifest'};static ErrorTypes={MEDIA_ERROR:'media',NETWORK_ERROR:'network'};
+    static isSupported(){return mse;}static Events={ERROR:'error',MEDIA_ATTACHED:'attached',MANIFEST_PARSED:'manifest',BUFFER_APPENDED:'buffered'};static ErrorTypes={MEDIA_ERROR:'media',NETWORK_ERROR:'network'};
     constructor(config){this.config=config;this.handlers={};this.recoveries=0;this.starts=[];this.levels=[{}];players.push(this);}
     on(name,fn){this.handlers[name]=fn;}attachMedia(v){this.video=v;this.handlers.attached();}loadSource(url){this.loads=(this.loads||0)+1;this.url=url;}
     startLoad(...args){this.starts.push(args);}recoverMediaError(){this.recoveries++;this.handlers.attached();this.video.paused=true;this.video.emit('pause');}stopLoad(){this.stopped=true;}destroy(){this.destroyed=true;}
@@ -98,6 +99,33 @@ test('MSE waits for its manifest and native Safari fallback remains available',a
 test('autoplay blocked by the browser waits for the viewer without reconnect loops',async()=>{
   const h=harness({autoplay:false});await start(h);await h.advance(120000);
   assert.equal(h.calls.length,1);assert.equal(h.video.plays,1);assert.match(h.statuses.at(-1),/Toca reproducir/);
+});
+test('progressive startup waits for a small cushion and starts as soon as it is ready',async()=>{
+  const h=harness({ranges:[[0,.1]]});await start(h);assert.equal(h.video.plays,0);
+  h.video.emit('canplay');assert.equal(h.video.plays,0);
+  h.video.ranges=[[0,1.2]];h.players[0].handlers.buffered();assert.equal(h.video.plays,1);
+  await h.advance(1500);h.players[0].handlers.manifest();assert.equal(h.video.plays,1);
+});
+test('startup cushion has a one-second ceiling even when the source is slow',async()=>{
+  const h=harness({ranges:[]});await start(h);await h.advance(999);assert.equal(h.video.plays,0);
+  await h.advance(1);assert.equal(h.video.plays,1);
+});
+test('a small buffered gap resumes forward without reloading or downloading again',async()=>{
+  const h=harness();await start(h);h.video.currentTime=10;h.video.ranges=[[0,10],[10.4,16]];
+  await h.advance(3000);assert.ok(Math.abs(h.video.currentTime-10.45)<.001);assert.equal(h.calls.length,1);assert.equal(h.players[0].starts.length,0);
+});
+test('gap recovery does not seek over large gaps or override a paused viewer',async()=>{
+  const h=harness();await start(h);h.video.currentTime=10;h.video.ranges=[[12,16]];await h.advance(3000);assert.equal(h.video.currentTime,10);
+  h.video.paused=true;h.video.emit('pause');h.video.ranges=[[10.4,16]];await h.advance(3000);assert.equal(h.video.currentTime,10);
+});
+test('leaving during startup cancels delayed play',async()=>{
+  const h=harness({ranges:[]});await start(h);h.player.destroy();await h.advance(2000);assert.equal(h.video.plays,0);assert.equal(h.jobs.size,0);
+});
+test('a late play rejection from an old session cannot pause the recovered session',async()=>{
+  const h=harness(),normal=h.video.play.bind(h.video);let rejectOld;
+  h.video.play=()=>{void normal();return new Promise((_,reject)=>rejectOld=reject);};await start(h);
+  h.video.play=normal;h.players[0].error('network',403);await h.advance(1000);h.players[1].handlers.manifest();h.video.emit('playing');
+  rejectOld(Object.assign(new Error(),{name:'NotAllowedError'}));await settle();assert.equal(h.statuses.at(-1),'Reproduciendo');
 });
 test('a stuck source resolution times out and retries instead of waiting forever',async()=>{
   const h=harness({resolve:(_,signal)=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted'))))});
