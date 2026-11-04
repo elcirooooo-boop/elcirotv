@@ -48,11 +48,28 @@ async function play(signal,signals){
       const source=await api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent([...excluded].join(',')));
       if(!active())return;sourceKey=source.sourceKey||'';
       connecting=false;wanted=true;started=Date.now();
-      if(current.canPlayType('application/vnd.apple.mpegurl'))current.src=source.url;
-      else if(window.Hls?.isSupported()){
-        hls=new Hls({maxBufferLength:25,maxMaxBufferLength:45});hls.on(Hls.Events.ERROR,(_,error)=>{if(error.fatal)recover();});hls.loadSource(source.url);hls.attachMedia(current);
+      const requestPlay=()=>{
+        if(!active()||current!==video)return;
+        void current.play().catch(error=>{if(!active()||current!==video)return;if(error.name==='NotAllowedError'){wanted=false;status.textContent='Toca reproducir para ver '+signal.name+'.';}else if(error.name!=='AbortError')recover();});
+      };
+      // Chromium also reports native HLS support. Prefer the tested MSE engine
+      // whenever available rather than treating canPlayType("maybe") as proof.
+      if(window.Hls?.isSupported()){
+        const instance=new window.Hls({maxBufferLength:25,maxMaxBufferLength:45});hls=instance;
+        let mediaRecoveryUsed=false;
+        current.dataset.engine='hls.js';
+        instance.on(window.Hls.Events.ERROR,(_,error)=>{
+          if(!active()||current!==video||hls!==instance||!error.fatal)return;
+          if(error.type===window.Hls.ErrorTypes?.MEDIA_ERROR&&!mediaRecoveryUsed){mediaRecoveryUsed=true;instance.recoverMediaError();return;}
+          recover();
+        });
+        instance.on(window.Hls.Events.MANIFEST_PARSED,requestPlay);
+        instance.on(window.Hls.Events.MEDIA_ATTACHED,()=>{if(active()&&current===video&&hls===instance)instance.loadSource(source.url);});
+        instance.attachMedia(current);
+      }else if(current.canPlayType('application/vnd.apple.mpegurl')){
+        current.dataset.engine='native';
+        current.src=source.url;requestPlay();
       }else{finished=true;status.textContent='Este navegador no admite la reproducción.';return;}
-      void current.play().catch(error=>{if(!active()||current!==video)return;if(error.name==='NotAllowedError'){wanted=false;status.textContent='Toca reproducir para ver '+signal.name+'.';}else if(error.name!=='AbortError')recover();});
     }catch(error){if(active()){connecting=false;finished=true;status.textContent=error.message;}}
   }
   document.querySelector('#retry').onclick=()=>play(signal,signals);
