@@ -43,7 +43,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
       if(Hls?.isSupported()){
-        const instance=new Hls({lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
+        const instance=new Hls({progressive:true,lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
         let sourceLoaded=false;
         engine=instance;video.dataset.engine='hls.js';
         instance.on(Hls.Events.ERROR,(_,error)=>{

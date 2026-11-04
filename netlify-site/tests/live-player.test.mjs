@@ -92,6 +92,7 @@ test('a healthy continuous interval restores the transient recovery budget',asyn
 });
 test('MSE waits for its manifest and native Safari fallback remains available',async()=>{
   const h=harness();await h.player.start();assert.equal(h.video.plays,0);h.players[0].handlers.manifest();assert.equal(h.video.plays,1);
+  assert.equal(h.players[0].config.progressive,true);
   const native=harness({mse:false});await native.player.start();assert.equal(native.video.src,'/api/media?t=test');assert.equal(native.video.plays,1);
 });
 test('autoplay blocked by the browser waits for the viewer without reconnect loops',async()=>{
