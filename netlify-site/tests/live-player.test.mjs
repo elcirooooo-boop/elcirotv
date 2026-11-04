@@ -121,6 +121,10 @@ test('gap recovery does not seek over large gaps or override a paused viewer',as
 test('leaving during startup cancels delayed play',async()=>{
   const h=harness({ranges:[]});await start(h);h.player.destroy();await h.advance(2000);assert.equal(h.video.plays,0);assert.equal(h.jobs.size,0);
 });
+test('a failed startup cancels its play timer before the replacement session loads',async()=>{
+  const h=harness({ranges:[]});await start(h);h.players[0].error('network',403);
+  await h.advance(1000);assert.equal(h.video.plays,0);assert.equal(h.calls.length,2);
+});
 test('a late play rejection from an old session cannot pause the recovered session',async()=>{
   const h=harness(),normal=h.video.play.bind(h.video);let rejectOld;
   h.video.play=()=>{void normal();return new Promise((_,reject)=>rejectOld=reject);};await start(h);

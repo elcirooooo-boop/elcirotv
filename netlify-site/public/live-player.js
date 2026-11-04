@@ -23,6 +23,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   function reconnect(){
     if(disposed||connecting||pending||!wanted)return;
     if(reconnects>=5){wanted=false;engine?.stopLoad();status('La señal está interrumpida. Puedes reintentar más tarde.');return;}
+    timers.clearTimeout(startupTimer);starting=false;
     status('Recuperando la señal…');stableSince=0;
     const delay=Math.min(1000*2**reconnects,8000);
     pending=timers.setTimeout(()=>{pending=undefined;reconnects++;void connect();},delay);
@@ -52,7 +53,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
         const instance=new Hls({progressive:true,lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
         let sourceLoaded=false,parsed=false;
         const startBuffered=(force=false)=>{
-          if(disposed||engine!==instance||!parsed||!starting||!wanted)return;
+          if(disposed||connecting||engine!==instance||!parsed||!starting||!wanted)return;
           if(!force&&bufferedAhead()<1)return;
           starting=false;replacing=false;timers.clearTimeout(startupTimer);requestPlay();
         };
