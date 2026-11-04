@@ -1,9 +1,9 @@
 import {Readable} from 'node:stream';
-import {timingSafeEqual} from 'node:crypto';
 import {getStore} from '@netlify/blobs';
 import {agenda} from '../lib/agenda.mjs';
-import {publicAgenda,grant,verify,manifest,dayOf} from '../lib/core.mjs';
+import {publicAgenda,grant,verify,manifest} from '../lib/core.mjs';
 import {resolve,request,read} from '../lib/network.mjs';
+import {bucket,viewerCounts} from '../lib/viewers.mjs';
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 export default async function handler(req) {
   const url=new URL(req.url),action=url.pathname.split('/').filter(Boolean).at(-1);
@@ -38,18 +38,15 @@ export default async function handler(req) {
       if(!/^[a-f0-9-]{36}$/.test(body.session||''))return json({error:'Sesión no válida.'},400);
       const data=await agenda(),event=data.events.find(e=>e.id===body.match);
       if(body.match&&!event)return json({error:'Partido no válido.'},400);
-      const store=getStore('audience'),key=`${dayOf(new Date())}/${body.session}`;
-      await store.setJSON(key,{match:event?.id||'',title:event?.title||'',playing:body.playing===true,at:Date.now()});
+      const now=Date.now(),store=getStore('live-viewers'),key=`${bucket(now)}/${body.session}`;
+      await store.setJSON(key,{session:body.session,match:event?.id||'',playing:body.playing===true,at:now});
       return json({ok:true});
     }
-    if(action==='statistics'){
-      const secret=process.env.ADMIN_PASSWORD||'',actual=Buffer.from(req.headers.get('authorization')?.replace(/^Bearer /,'')||''),expected=Buffer.from(secret);
-      if(secret.length<16||actual.length!==expected.length||!timingSafeEqual(actual,expected))return json({error:'Acceso privado.'},403);
-      const store=getStore('audience'),{blobs}=await store.list({prefix:dayOf(new Date())+'/'});
-      const sessions=(await Promise.all(blobs.map(b=>store.get(b.key,{type:'json'})))).filter(Boolean);
-      const events=new Map();let watching=0;
-      for(const session of sessions){if(!session.match)continue;const row=events.get(session.match)||{title:session.title,visitors:0,watching:0};row.visitors++;if(session.playing&&Date.now()-session.at<75000){row.watching++;watching++;}events.set(session.match,row);}
-      return json({visitors:sessions.length,watching,events:[...events.values()]});
+    if(action==='viewers'){
+      const now=Date.now(),current=bucket(now),store=getStore('live-viewers');
+      const pages=await Promise.all([current,current-1,current-2].map(b=>store.list({prefix:b+'/'})));
+      const records=(await Promise.all(pages.flatMap(page=>page.blobs).map(blob=>store.get(blob.key,{type:'json'})))).filter(Boolean);
+      return json({counts:viewerCounts(records,now)},200,{'Netlify-CDN-Cache-Control':'public, max-age=10'});
     }
     return json({error:'Ruta no encontrada.'},404);
   }catch{return json({error:action==='agenda'?'No se pudo actualizar la agenda. Intenta de nuevo.':'La señal no está disponible. Prueba otra opción.'},503);}
