@@ -22,6 +22,7 @@ test('catalog playback returns a Netlify media session without a separate video 
 });
 test('old session paths request a refresh without contacting the retired server',async()=>{
   assert.equal((await handler(new Request('https://test.netlify.app/api/retired'))).status,410);
+  assert.equal((await handler(new Request('https://test.netlify.app/stream/live/espn/master.m3u8'))).status,410);
 });
 test('removed statistics endpoint is unavailable',async()=>{
   assert.equal((await handler(new Request('https://test.netlify.app/api/statistics'))).status,404);

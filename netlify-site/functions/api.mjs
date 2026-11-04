@@ -6,9 +6,10 @@ import {request,read} from '../lib/network.mjs';
 import {bucket,viewerCounts} from '../lib/viewers.mjs';
 import {playbackKey} from '../lib/playback-key.mjs';
 import {resolvePlaybackRoute,playbackServices} from '../lib/playback-route.mjs';
+import {refreshDeniedMedia} from '../lib/media-refresh.mjs';
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 export default async function handler(req) {
-  const url=new URL(req.url),action=url.pathname.split('/').filter(Boolean).at(-1);
+  const url=new URL(req.url),action=url.pathname.startsWith('/stream/live/')?'retired':url.pathname.split('/').filter(Boolean).at(-1);
   const expectedMethod=action==='presence'?'POST':'GET';
   if(req.method!==expectedMethod)return json({error:'Método no permitido.'},405,{'Allow':expectedMethod});
   try {
@@ -28,10 +29,17 @@ export default async function handler(req) {
       if(!token||!token.includes('.'))return json({error:'La sesión venció. Vuelve a abrir la señal.'},403);
       const key=await playbackKey();
       let permission;try{permission=verify(token,key);}catch{return json({error:'La sesión venció. Vuelve a abrir la señal.'},403);}
-      const {response,url:finalURL}=await request(permission.url,permission.referer,req.headers.get('range')||'');
+      const range=req.headers.get('range')||'';
+      let upstream=await request(permission.url,permission.referer,range);
+      if([401,403].includes(upstream.response.statusCode)){
+        upstream.response.resume();
+        const renewed=await refreshDeniedMedia(permission,range);
+        if(renewed)upstream=renewed;
+      }
+      const {response,url:finalURL}=upstream,referer=upstream.referer||permission.referer;
       const type=String(response.headers['content-type']||'application/octet-stream');
-      if(response.statusCode<200||response.statusCode>=300||/html|javascript|json|svg/i.test(type)){response.resume();return json({error:'Señal no disponible.'},502);}
-      if(/mpegurl/i.test(type)||new URL(finalURL).pathname.endsWith('.m3u8'))return new Response(manifest(await read(response,1000000),finalURL,permission.referer,permission.expiry,key),{headers:{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'}});
+      if(response.statusCode<200||response.statusCode>=300||/html|javascript|json|svg/i.test(type)){response.resume();return json({error:'Señal no disponible.'},[401,403].includes(response.statusCode)?response.statusCode:502);}
+      if(/mpegurl/i.test(type)||new URL(finalURL).pathname.endsWith('.m3u8'))return new Response(manifest(await read(response,1000000),finalURL,referer,permission.expiry,key),{headers:{'Content-Type':'application/vnd.apple.mpegurl','Cache-Control':'no-store'}});
       const headers={'Content-Type':type,'Cache-Control':'private, max-age=5','X-Content-Type-Options':'nosniff'};
       for(const key of ['content-range','accept-ranges'])if(response.headers[key])headers[key]=response.headers[key];
       // HLS uses short segments; stop before the platform's streamed response limit.

@@ -43,6 +43,8 @@ En `netlify-site`: `npm ci`, `npm test`, `npm run build`. Para la API real, usa 
 
 Netlify Functions entrega listas, claves y fragmentos desde `/api/media`, conservando las cabeceras requeridas por el proveedor y validando cada destino. Las listas no se almacenan en caché; los enlaces de sus fragmentos y listas hijas están firmados. Los bytes se transmiten progresivamente, con un límite de 19 MB por fragmento. La clave de firma se reutiliza en memoria tras obtenerla de Blobs.
 
+Ante una denegación 401/403, la función puede solicitar una sesión pública nueva del reproductor registrado, dentro de la misma invocación y con un límite de ocho segundos. Solo reutiliza la ruta exacta de la lista o un fragmento inequívoco publicado por ese canal; conserva los identificadores de segmento y no cambia de partido. Si la renovación falla, devuelve el error para la recuperación limitada del cliente.
+
 HLS.js usa FetchLoader progresivo para procesar los datos mientras llegan. Esta versión no ejecuta procesos Gunicorn, FFmpeg, cachés persistentes de fragmentos ni tareas de un bot. Cada descarga consume transferencia e invocaciones de Netlify; las pruebas funcionales no sustituyen una prueba de carga.
 
 Los enlaces antiguos `/stream/live/*` responden 410 desde una función local para que el reproductor solicite una sesión actualizada. No se redirigen a un servicio externo.
