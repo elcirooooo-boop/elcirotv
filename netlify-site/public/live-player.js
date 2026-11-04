@@ -36,14 +36,14 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
       // Retry the same provider first. Only sustained repeated failure moves to
       // another registered source for this channel.
       if(reconnects>=2&&sourceKey)excluded.add(sourceKey);
-      const source=await resolveSource([...excluded],request.signal);
+      const source=await resolveSource([...excluded],request.signal,{refresh:reconnects>0});
       if(disposed)return;
       sourceKey=source.sourceKey||'';replacing=true;
       engine?.destroy();engine=undefined;
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
       if(Hls?.isSupported()){
-        const instance=new Hls({lowLatencyMode:false,liveSyncDurationCount:5,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
+        const instance=new Hls({lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
         let sourceLoaded=false;
         engine=instance;video.dataset.engine='hls.js';
         instance.on(Hls.Events.ERROR,(_,error)=>{

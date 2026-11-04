@@ -18,7 +18,7 @@ export default async function handler(req) {
       const source=catalogSignals().find(s=>s.id===id)||(await agenda()).events.flatMap(e=>e.signals).find(s=>s.id===id);
       if(!source)return json({error:'Esta señal ya no está publicada. Actualiza la agenda.'},404);
       const excluded=(url.searchParams.get('exclude')||'').split(',').filter(id=>/^[a-f0-9]{24}$/.test(id)).slice(0,8);
-      let resolved;try{resolved=await selectPlayback(source,excluded);}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
+      let resolved;try{resolved=await selectPlayback(source,excluded,undefined,{refresh:url.searchParams.get('refresh')==='1'});}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
       return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackKey())),name:source.name,sourceKey:resolved.sourceKey});
     }
     if(action==='media'){

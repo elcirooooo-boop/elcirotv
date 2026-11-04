@@ -25,20 +25,22 @@ export function playbackHeaders(referer='') {
   }
   return headers;
 }
-export async function request(value,referer='',range='',hop=0) {
+export async function request(value,referer='',range='',hop=0,{signal,timeout=12000}={}) {
+  signal?.throwIfAborted();
   const url=safeURL(value);
   const addresses=await lookup(url.hostname,{all:true,family:4});
+  signal?.throwIfAborted();
   const address=addresses.find(x=>!blocked.check(x.address));
   if(!address)throw Error('PRIVATE_ADDRESS');
   const headers=playbackHeaders(referer);
   if(/^bytes=\d+-\d*$/.test(range))headers.Range=range;
   const response=await new Promise((resolve,reject)=>{
-    const req=(url.protocol==='https:'?https:http).get(url,{headers,lookup:pinnedLookup(address.address)},resolve);
-    req.setTimeout(12000,()=>req.destroy(Error('TIMEOUT')));req.on('error',reject);
+    const req=(url.protocol==='https:'?https:http).get(url,{headers,lookup:pinnedLookup(address.address),signal},resolve);
+    req.setTimeout(timeout,()=>req.destroy(Error('TIMEOUT')));req.on('error',reject);
   });
   if([301,302,303,307,308].includes(response.statusCode)) {
     response.resume();if(hop>=3||!response.headers.location)throw Error('REDIRECT_LIMIT');
-    return request(new URL(response.headers.location,url).href,referer,range,hop+1);
+    return request(new URL(response.headers.location,url).href,referer,range,hop+1,{signal,timeout});
   }
   return {response,url:url.href};
 }
@@ -48,16 +50,17 @@ export async function read(response,limit=1500000) {
   return Buffer.concat(chunks).toString('utf8');
 }
 const players=new Set(['rojadirectatvmas.net','rojadirectatvplay.org','tarjetadigital.club','la18hd.su','tvf90.com'].flatMap(h=>[h,'www.'+h]));
-export async function resolve(initial) {
+export async function resolve(initial,options={}) {
   const pending=[[initial,'https://tarjetadigital.club/',0]],seen=new Set();
   const deadline=Date.now()+23000;
   while(pending.length&&seen.size<6&&Date.now()<deadline){
+    options.signal?.throwIfAborted();
     const [value,referer,depth]=pending.shift(),target=safeURL(value);
     if(/\.m3u8$/i.test(target.pathname))return {url:target.href,referer};
     if(!players.has(target.hostname)||seen.has(target.href)||depth>3)continue;
     seen.add(target.href);
     try{
-      const {response,url}=await request(target.href,referer);
+      const {response,url}=await request(target.href,referer,'',0,options);
       // Redirects are allowed only among the published player hosts.
       if(!players.has(new URL(url).hostname)||response.statusCode!==200){response.resume();continue;}
       const html=(await read(response)).replaceAll('\\/','/').replaceAll('&amp;','&');

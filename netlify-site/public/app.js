@@ -32,7 +32,7 @@ async function play(signal,signals){
   const active=()=>playerGeneration===generation&&selected===identity;
   player=createLivePlayer({
     video,Hls:window.Hls,
-    resolveSource:(excluded,abortSignal)=>api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent(excluded.join(',')),{signal:abortSignal}),
+    resolveSource:(excluded,abortSignal,{refresh})=>api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal:abortSignal}),
     onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
     onProgress:()=>{if(active())lastProgress=Date.now();},
     onState:()=>{if(active())void heartbeat().then(refreshViewers);},

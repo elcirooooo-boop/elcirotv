@@ -20,8 +20,9 @@ function harness({mse=true,resolve,autoplay=true}={}){
     startLoad(...args){this.starts.push(args);}recoverMediaError(){this.recoveries++;this.handlers.attached();this.video.paused=true;this.video.emit('pause');}stopLoad(){this.stopped=true;}destroy(){this.destroyed=true;}
     error(type='network',code=502){this.handlers.error(null,{fatal:true,type,response:{code}});}
   }
-  const player=createLivePlayer({video,Hls,timers,now:()=>clock,onStatus:s=>statuses.push(s),resolveSource:async(excluded,signal)=>{calls.push([...excluded]);return resolve?resolve(excluded,signal):{url:'/api/media?t=test',sourceKey:excluded.includes('first')?'second':'first'};}});
-  return {player,video,players,calls,statuses,advance,jobs};
+  const requests=[];
+  const player=createLivePlayer({video,Hls,timers,now:()=>clock,onStatus:s=>statuses.push(s),resolveSource:async(excluded,signal,options)=>{calls.push([...excluded]);requests.push(options);return resolve?resolve(excluded,signal):{url:'/api/media?t=test',sourceKey:excluded.includes('first')?'second':'first'};}});
+  return {player,video,players,calls,requests,statuses,advance,jobs};
 }
 async function start(h){await h.player.start();h.players[0]?.handlers.manifest();await settle();}
 test('temporary network failures retain the video, buffer timeline and HLS instance',async()=>{
@@ -35,6 +36,7 @@ test('only sustained failure re-resolves with backoff and eventually another pro
   engine.error();engine.error();engine.error();engine.error();assert.equal(h.calls.length,1);
   await h.advance(999);assert.equal(h.calls.length,1);await h.advance(1);assert.equal(h.calls.length,2);assert.deepEqual(h.calls[1],[]);
   h.players[1].error('network',403);await h.advance(2000);assert.deepEqual(h.calls[2],['first']);
+  assert.equal(h.requests[0].refresh,false);assert.equal(h.requests[1].refresh,true);
   assert.equal(h.video.volume,.4);assert.equal(h.video.muted,true);
 });
 test('decoder recovery retains the player before a delayed source refresh',async()=>{
