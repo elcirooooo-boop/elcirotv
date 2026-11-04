@@ -1,6 +1,6 @@
 # El Ciro en Netlify
 
-La web se publica en Netlify con archivos estáticos, Functions (Node.js) y Blobs. La entrega de video utiliza el servicio persistente existente en `web-production-dc68f.up.railway.app`; la web no se aloja allí. Ese servicio debe permanecer activo. El reproductor sigue siendo nuestro HLS.js, sin iframes de terceros, anuncios añadidos ni P2P.
+La web y la reproducción funcionan con archivos estáticos, Functions (Node.js) y Blobs en Netlify. No necesitan Railway, un bot activo ni un servidor persistente adicional. Las señales se obtienen de los proveedores registrados mediante la API propia. El reproductor sigue siendo HLS.js, sin iframes de terceros, anuncios añadidos ni P2P.
 
 ## Crear el proyecto
 
@@ -39,13 +39,13 @@ La página no añade anuncios ni abre iframes publicitarios. Los anuncios incrus
 
 En `netlify-site`: `npm ci`, `npm test`, `npm run build`. Para la API real, usa Netlify Dev con el proyecto vinculado y sus variables configuradas; las funciones necesitan el contexto de Blobs. Nunca publiques la raíz completa del repositorio: solo `dist` contiene los archivos públicos.
 
-Para los canales identificados, `/api/play` abre una sesión en `/api/playback/<slug>` del servicio persistente. Devuelve una lista firmada `/stream/live/<slug>/sub.m3u8?...` que fija la fuente durante esa reproducción. No debe utilizarse el antiguo `master.m3u8` como URL permanente: vuelve a resolver la fuente y puede alternar entre servidores y sus cachés cada minuto.
+`/api/play` resuelve y valida una fuente registrada del canal seleccionado. Devuelve una sesión firmada `/api/media?t=...`, generada con la clave privada persistida en Netlify Blobs. La selección mantiene una caché corta y agrupa solicitudes simultáneas; una reconexión puede pedir una resolución nueva.
 
-Las reglas de `public/_redirects` y `netlify.toml` envían `/stream/live/*` desde el CDN de Netlify al servicio existente. Las listas no se almacenan en caché; segmentos, claves y listas hijas permanecen firmados por el servicio. Esto evita una invocación de Functions y la lectura de la clave de Blobs por cada fragmento. Las señales adicionales que no tienen un identificador reconocido conservan la ruta compatible `/api/media`. Se consume transferencia en Netlify y en el servicio de video; esta validación no sustituye una prueba de carga.
+Netlify Functions entrega listas, claves y fragmentos desde `/api/media`, conservando las cabeceras requeridas por el proveedor y validando cada destino. Las listas no se almacenan en caché; los enlaces de sus fragmentos y listas hijas están firmados. Los bytes se transmiten progresivamente, con un límite de 19 MB por fragmento. La clave de firma se reutiliza en memoria tras obtenerla de Blobs.
 
-El servicio prepara los dos fragmentos siguientes de la misma fuente en paralelo. La caché es privada, limitada a 48 MB por proceso y 45 segundos. Un fragmento ya preparado se entrega directamente; si todavía no está disponible, se transmite inmediatamente en bloques de 16 KB, sin esperar a completar la descarga. HLS.js usa su FetchLoader progresivo para procesar esos bloques. Solo se guardan archivos completos; las respuestas vacías, truncadas o de error no entran en caché. Los diagnósticos se escriben en segundo plano para que una espera de SQLite no detenga el video. Las peticiones con Range conservan su ruta compatible.
+HLS.js usa FetchLoader progresivo para procesar los datos mientras llegan. Esta versión no ejecuta procesos Gunicorn, FFmpeg, cachés persistentes de fragmentos ni tareas de un bot. Cada descarga consume transferencia e invocaciones de Netlify; las pruebas funcionales no sustituyen una prueba de carga.
 
-El servicio web usa un trabajador Gunicorn con 24 hilos para compartir esa caché entre las conexiones. No aumentar los procesos sin añadir primero una caché compartida entre procesos: un fragmento preparado por un trabajador puede haber desaparecido del origen cuando otro intenta volver a descargarlo. Las denegaciones HTTP 401/403 del origen se conservan en listas y fragmentos para que el cliente renueve la sesión, en lugar de reintentar un enlace vencido como si fuera un fallo 502 temporal.
+Los enlaces antiguos `/stream/live/*` responden 410 desde una función local para que el reproductor solicite una sesión actualizada. No se redirigen a un servicio externo.
 
 Al arrancar, HLS.js intenta acumular un segundo de video; esta preparación añade como máximo un segundo de espera y no exige terminar de descargar el fragmento. Si la reproducción se detiene ante un hueco de hasta un segundo y el siguiente rango ya está descargado, el cliente avanza a ese rango sin renovar la sesión. No realiza ese ajuste en pausa ni atraviesa huecos mayores. Las promesas de reproducción de sesiones anteriores no pueden detener una sesión recuperada.
 
@@ -53,8 +53,7 @@ Documentación: [Functions](https://docs.netlify.com/build/functions/overview/),
 
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.
 
-La recuperación conserva el mismo canal y solicita una sesión nueva únicamente cuando es necesaria. El servicio persistente administra sus fuentes; el cliente no excluye una ruta entera al fallar una sesión. Los reintentos son limitados y se detienen al salir de la página. No se garantiza disponibilidad de proveedores externos.
+La recuperación conserva el mismo canal y solicita una sesión nueva únicamente cuando es necesaria. Las fuentes de respaldo pertenecen a ese canal. Los reintentos son limitados y se detienen al salir de la página. No se garantiza disponibilidad de proveedores externos ni su aceptación de tráfico desde Netlify.
 
-Antes de abrir una sesión, se comprueba `/health` del servicio con un límite de dos segundos y una caché de diez segundos. Si el servicio está caído, su dominio desaparece o no puede emitir una sesión, se prueban las fuentes registradas del mismo canal por la ruta compatible de Netlify. Cuando vuelve el servicio, las nuevas sesiones lo utilizan automáticamente. Este respaldo es de emergencia y no sustituye mantener operativo el servicio persistente de video.
 
 El catálogo se importó de `TR_CHANNELS`, `CHANNEL_NAMES` y los alias de `channel_source.py` del bot uno. Las solicitudes de manifiestos, claves y segmentos conservan `Referer`, `Origin` y el mismo User-Agent del bot. La web usa HLS; la conversión continua FFmpeg → Telegram del bot requiere un proceso persistente y no se ejecuta en Functions.

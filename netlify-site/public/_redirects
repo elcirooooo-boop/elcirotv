@@ -1,2 +1,2 @@
-# Media stays on the existing persistent service; all URLs remain on this site.
-/stream/live/* https://web-production-dc68f.up.railway.app/stream/live/:splat 200!
+# Retired playback URLs reconnect through our Netlify API.
+/stream/live/* /.netlify/functions/api/retired 200!
