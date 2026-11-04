@@ -18,8 +18,8 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     if(disposed||connecting||pending||!wanted)return;
     if(reconnects>=5){wanted=false;engine?.stopLoad();status('La señal está interrumpida. Puedes reintentar más tarde.');return;}
     status('Recuperando la señal…');stableSince=0;
-    const delay=Math.min(1000*2**reconnects,8000);reconnects++;
-    pending=timers.setTimeout(()=>{pending=undefined;void connect();},delay);
+    const delay=Math.min(1000*2**reconnects,8000);
+    pending=timers.setTimeout(()=>{pending=undefined;reconnects++;void connect();},delay);
   }
   function resumeDownload(){
     networkRetries++;lastProgress=now();
@@ -66,6 +66,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     if(disposed||video.paused||video.currentTime===position)return;
     const advancing=position>=0&&video.currentTime>position&&video.currentTime-position<5;
     position=video.currentTime;lastProgress=now();onProgress();
+    if(advancing&&pending){timers.clearTimeout(pending);pending=undefined;status('Reproduciendo');}
     if(!advancing)stableSince=0;
     else if(!stableSince)stableSince=now();
     if(stableSince&&now()-stableSince>30000){reconnects=0;networkRetries=0;mediaRetries=0;excluded.clear();}
