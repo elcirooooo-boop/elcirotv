@@ -9,6 +9,14 @@ export function safeURL(value) {
   if(!['https:','http:'].includes(url.protocol)||url.username||url.password||(url.port&&!['80','443'].includes(url.port))||isIP(host)||!host.includes('.')||!/^[a-z0-9.-]+$/.test(host)||/(^|\.)(localhost|local|internal)$/.test(host))throw Error('INVALID_URL');
   return url;
 }
+export function pinnedLookup(address) {
+  return (_host,options,callback)=>{
+    // Node's automatic family selection requests all addresses (Node 20+).
+    // Keep the already validated DNS address pinned in either callback format.
+    if(options?.all)callback(null,[{address,family:4}]);
+    else callback(null,address,4);
+  };
+}
 export async function request(value,referer='',range='',hop=0) {
   const url=safeURL(value);
   const addresses=await lookup(url.hostname,{all:true,family:4});
@@ -18,7 +26,7 @@ export async function request(value,referer='',range='',hop=0) {
   if(referer&&!/[\r\n]/.test(referer))headers.Referer=referer;
   if(/^bytes=\d+-\d*$/.test(range))headers.Range=range;
   const response=await new Promise((resolve,reject)=>{
-    const req=(url.protocol==='https:'?https:http).get(url,{headers,lookup:(_host,_options,cb)=>cb(null,address.address,4)},resolve);
+    const req=(url.protocol==='https:'?https:http).get(url,{headers,lookup:pinnedLookup(address.address)},resolve);
     req.setTimeout(12000,()=>req.destroy(Error('TIMEOUT')));req.on('error',reject);
   });
   if([301,302,303,307,308].includes(response.statusCode)) {
