@@ -1,3 +1,4 @@
+import {scheduleText} from './schedule.js';
 export function matchPath(event){
   const name=event.title.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120).replace(/-$/,'')||'partido';
   return '/partido/'+encodeURIComponent(event.id)+'/'+name;
@@ -17,7 +18,7 @@ export function matchShareData(event,origin,signal){
   if(channel)url.searchParams.set('canal',channel.id);
   return {
     title:event.title+(channel?' · '+channel.name:'')+' · El Ciro TV',
-    text:event.title+' · '+event.league+' · '+event.time+(channel?' · Ver por '+channel.name:''),
+    text:event.title+' · '+event.league+' · '+scheduleText(event)+(channel?' · Ver por '+channel.name:''),
     url:url.href
   };
 }

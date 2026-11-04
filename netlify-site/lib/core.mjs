@@ -14,14 +14,17 @@ export function unwrap(value) {
     return ['http:','https:'].includes(decoded.protocol) ? decoded.href : null;
   } catch { return null; }
 }
-export function normalize(payload, now=new Date()) {
+export function normalize(payload, now=new Date(),{utcOffset='-05:00'}={}) {
   const raw = Array.isArray(payload) ? payload : payload?.data ?? payload?.events;
   if (!Array.isArray(raw)) throw Error('INVALID_AGENDA');
   const events=[];
   for (const row of raw) {
     const a=attrs(row), title=String(a.diary_description || a.title || '').trim();
     const hour=String(a.diary_hour || a.time || ''), date=String(a.date_diary || a.date || dayOf(now)).slice(0,10);
-    const start=new Date(hour.includes('T') ? hour : `${date}T${(hour || '12:00:00').slice(0,8)}${'diary_description' in a ? '-05:00' : 'Z'}`);
+    // Both published agenda feeds use UTC-5 wall times. Explicit ISO offsets
+    // remain authoritative; never let the server's timezone interpret a date.
+    const timestamp=hour.includes('T')?hour:`${date}T${(hour || '12:00:00').slice(0,8)}`;
+    const start=new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(timestamp)?timestamp:timestamp+utcOffset);
     if (!title || !Number.isFinite(start.getTime()) || dayOf(start)!==dayOf(now)) continue;
     const colon=title.indexOf(':'), league=colon<0 ? String(a.sport || 'Deportes') : title.slice(0,colon).trim(), match=colon<0 ? title : title.slice(colon+1).trim();
     const id=hash(`${start.toISOString()}|${slug(league)}|${slug(match)}`), seen=new Set(), signals=[];
@@ -32,7 +35,9 @@ export function normalize(payload, now=new Date()) {
       // Identity includes the full published URL: same slug may have several providers.
       signals.push({id:hash(url),name:String(embed.embed_name || embed.name || `Opción ${i+1}`).slice(0,100),url,lang:String(embed.lang || '')});
     }
-    events.push({id,title:match,league,startsAt:start.toISOString(),time:hour ? start.toLocaleTimeString('en-GB',{timeZone:'America/Caracas',hour:'2-digit',minute:'2-digit'}) : '--:--',signals:withAlternatives(signals)});
+    const previous=new Date(hour.includes('T')?hour:`${date}T${(hour || '12:00:00').slice(0,8)}${'diary_description' in a?'-05:00':'Z'}`);
+    const legacyIds=Number.isFinite(previous.getTime())&&previous.getTime()!==start.getTime()?[hash(`${previous.toISOString()}|${slug(league)}|${slug(match)}`)]:[];
+    events.push({id,legacyIds,title:match,league,startsAt:start.toISOString(),time:hour ? start.toLocaleTimeString('en-GB',{timeZone:'America/Caracas',hour:'2-digit',minute:'2-digit'}) : '--:--',signals:withAlternatives(signals)});
   }
   return events;
 }
@@ -74,7 +79,10 @@ export function merge(feeds) {
   for (const event of feeds.flat()) {
     const existing=events.get(event.id);
     if (!existing) events.set(event.id,{...event,signals:[...event.signals]});
-    else for (const signal of event.signals) if(!existing.signals.some(s=>s.id===signal.id)) existing.signals.push(signal);
+    else {
+      existing.legacyIds=[...new Set([...(existing.legacyIds||[]),...(event.legacyIds||[])])];
+      for (const signal of event.signals) if(!existing.signals.some(s=>s.id===signal.id)) existing.signals.push(signal);
+    }
   }
   const merged=[...events.values()],published=merged.flatMap(event=>event.signals);
   return merged.map(event=>({...event,signals:withPublishedAlternatives(event.signals,published)})).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.title.localeCompare(b.title));
