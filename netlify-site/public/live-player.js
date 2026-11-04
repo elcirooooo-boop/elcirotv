@@ -22,7 +22,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     pending=timers.setTimeout(()=>{pending=undefined;reconnects++;void connect();},delay);
   }
   function resumeDownload(){
-    networkRetries++;lastProgress=now();
+    networkRetries++;
     // Preserve the buffered timeline and position: do not reload the source.
     engine.startLoad(video.currentTime||-1,true);
     status('Recuperando la conexión…');
@@ -84,8 +84,8 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     const stalled=now()-lastProgress;
     // Let HLS.js handle normal buffering and small gaps. A stopped download
     // gets a retry without destroying buffered media or seeking backwards.
-    if(stalled>15000&&engine&&networkRetries<2)resumeDownload();
-    else if(stalled>30000)reconnect();
+    if(stalled>12000&&engine&&networkRetries<1)resumeDownload();
+    else if(stalled>22000)reconnect();
   },3000);
   return {
     start:connect,

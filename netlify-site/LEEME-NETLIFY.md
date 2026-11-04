@@ -43,6 +43,8 @@ Para los canales identificados, `/api/play` abre una sesión en `/api/playback/<
 
 Las reglas de `public/_redirects` y `netlify.toml` envían `/stream/live/*` desde el CDN de Netlify al servicio existente. Las listas no se almacenan en caché; segmentos, claves y listas hijas permanecen firmados por el servicio. Esto evita una invocación de Functions y la lectura de la clave de Blobs por cada fragmento. Las señales adicionales que no tienen un identificador reconocido conservan la ruta compatible `/api/media`. Se consume transferencia en Netlify y en el servicio de video; esta validación no sustituye una prueba de carga.
 
+El servicio prepara hasta tres fragmentos recientes de la misma fuente en paralelo. La caché es privada, limitada a 48 MB por proceso y 45 segundos, y agrupa solicitudes simultáneas del mismo fragmento. Solo se guardan archivos completos; las respuestas vacías, truncadas o de error no entran en caché. Los diagnósticos se escriben en segundo plano para que una espera de SQLite no detenga el video. Las peticiones con Range conservan su ruta compatible.
+
 Documentación: [Functions](https://docs.netlify.com/build/functions/overview/), [límites de respuesta](https://docs.netlify.com/build/functions/api/), [Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/).
 
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.

@@ -48,6 +48,10 @@ test('watchdog resumes downloads before considering a full reconnect',async()=>{
   const h=harness();await start(h);await h.advance(18000);
   assert.equal(h.players[0].starts.length,1);assert.equal(h.calls.length,1);assert.equal(h.video.loads,1);
 });
+test('a download retry does not hide a frozen video for another minute',async()=>{
+  const h=harness();await start(h);await h.advance(26000);
+  assert.equal(h.calls.length,2);assert.equal(h.requests[1].refresh,true);
+});
 test('a signal that resumes during backoff cancels the unnecessary source reset',async()=>{
   const h=harness();await start(h);h.video.currentTime=50;h.video.emit('timeupdate');
   h.players[0].error('network',403);h.video.currentTime=51;h.video.emit('timeupdate');await h.advance(2000);
