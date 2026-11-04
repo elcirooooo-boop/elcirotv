@@ -17,13 +17,20 @@ export function pinnedLookup(address) {
     else callback(null,address,4);
   };
 }
+export function playbackHeaders(referer='') {
+  const headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36','Accept':'*/*','Accept-Encoding':'identity'};
+  if(referer&&!/[\r\n]/.test(referer)){
+    headers.Referer=referer;
+    try{headers.Origin=safeURL(referer).origin;}catch{/* No invalid origin header. */}
+  }
+  return headers;
+}
 export async function request(value,referer='',range='',hop=0) {
   const url=safeURL(value);
   const addresses=await lookup(url.hostname,{all:true,family:4});
   const address=addresses.find(x=>!blocked.check(x.address));
   if(!address)throw Error('PRIVATE_ADDRESS');
-  const headers={'User-Agent':'Mozilla/5.0','Accept':'*/*','Accept-Encoding':'identity'};
-  if(referer&&!/[\r\n]/.test(referer))headers.Referer=referer;
+  const headers=playbackHeaders(referer);
   if(/^bytes=\d+-\d*$/.test(range))headers.Range=range;
   const response=await new Promise((resolve,reject)=>{
     const req=(url.protocol==='https:'?https:http).get(url,{headers,lookup:pinnedLookup(address.address)},resolve);

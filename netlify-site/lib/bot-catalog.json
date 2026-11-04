@@ -1,0 +1,440 @@
+{
+  "channels": [
+    {
+      "slug": "espn",
+      "name": "ESPN 1"
+    },
+    {
+      "slug": "espn2",
+      "name": "ESPN 2"
+    },
+    {
+      "slug": "espn3",
+      "name": "ESPN 3"
+    },
+    {
+      "slug": "espn4",
+      "name": "ESPN 4 HD"
+    },
+    {
+      "slug": "espn5",
+      "name": "ESPN 5 HD"
+    },
+    {
+      "slug": "espn6",
+      "name": "ESPN 6 HD"
+    },
+    {
+      "slug": "espn7",
+      "name": "ESPN 7 HD"
+    },
+    {
+      "slug": "espnpremium",
+      "name": "ESPN Premium"
+    },
+    {
+      "slug": "espnextra",
+      "name": "ESPN Extra HD"
+    },
+    {
+      "slug": "espnmx",
+      "name": "ESPN 1 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "espn2mx",
+      "name": "ESPN 2 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "espn3mx",
+      "name": "ESPN 3 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "espn4mx",
+      "name": "ESPN 4 México HD"
+    },
+    {
+      "slug": "espnplus",
+      "name": "ESPN Plus HD"
+    },
+    {
+      "slug": "fox1ar",
+      "name": "Fox Sports 1 Argentina"
+    },
+    {
+      "slug": "foxsports",
+      "name": "Fox Sports 1"
+    },
+    {
+      "slug": "foxsportsar",
+      "name": "Fox Sports Argentina"
+    },
+    {
+      "slug": "fox2ar",
+      "name": "Fox Sports 2 Argentina"
+    },
+    {
+      "slug": "foxsports2",
+      "name": "Fox Sports 2"
+    },
+    {
+      "slug": "foxsports3",
+      "name": "Fox Sports 3"
+    },
+    {
+      "slug": "foxsportsmx",
+      "name": "FOX Sports 1 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "foxsports2mx",
+      "name": "FOX Sports 2 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "foxsports3mx",
+      "name": "FOX Sports 3 México (Tarjeta Digital)"
+    },
+    {
+      "slug": "foxsportspremium",
+      "name": "FOX Sports Premium (Tarjeta Digital)"
+    },
+    {
+      "slug": "dsports",
+      "name": "DSports"
+    },
+    {
+      "slug": "dsports2",
+      "name": "DSports 2"
+    },
+    {
+      "slug": "dsportsplus",
+      "name": "DSports+"
+    },
+    {
+      "slug": "dsports_eventos",
+      "name": "DSports Eventos HD"
+    },
+    {
+      "slug": "tycsports",
+      "name": "TyC Sports"
+    },
+    {
+      "slug": "tntsports",
+      "name": "TNT Sports Argentina"
+    },
+    {
+      "slug": "tntsportschile",
+      "name": "TNT Sports Chile HD"
+    },
+    {
+      "slug": "golperu",
+      "name": "Gol Perú HD"
+    },
+    {
+      "slug": "winplus",
+      "name": "Win Sports + HD"
+    },
+    {
+      "slug": "telefe",
+      "name": "Telefe HD"
+    },
+    {
+      "slug": "caracol",
+      "name": "Caracol TV HD"
+    },
+    {
+      "slug": "americatv",
+      "name": "América TV HD"
+    },
+    {
+      "slug": "max1",
+      "name": "MAX 1 HD (Champions)"
+    },
+    {
+      "slug": "max2",
+      "name": "MAX 2 HD (Champions)"
+    },
+    {
+      "slug": "max3",
+      "name": "MAX 3 HD (Champions)"
+    },
+    {
+      "slug": "tudn",
+      "name": "TUDN"
+    },
+    {
+      "slug": "tudn_mx",
+      "name": "TUDN México (Tarjeta Digital)"
+    },
+    {
+      "slug": "vix1",
+      "name": "ViX+ Deportes 1 HD"
+    },
+    {
+      "slug": "vix2",
+      "name": "ViX+ Deportes 2 HD"
+    },
+    {
+      "slug": "laligatv",
+      "name": "LaLiga TV Bar"
+    },
+    {
+      "slug": "dazn1",
+      "name": "DAZN 1 España"
+    },
+    {
+      "slug": "dazn2",
+      "name": "DAZN 2 España"
+    },
+    {
+      "slug": "movistarliga",
+      "name": "Movistar LaLiga HD"
+    },
+    {
+      "slug": "canal5",
+      "name": "Canal 5 MX"
+    },
+    {
+      "slug": "azteca7",
+      "name": "Azteca 7 MX"
+    },
+    {
+      "slug": "univision",
+      "name": "Univisión USA"
+    },
+    {
+      "slug": "universo",
+      "name": "Universo USA"
+    },
+    {
+      "slug": "disney1",
+      "name": "Disney+ 1 HD"
+    },
+    {
+      "slug": "disney2",
+      "name": "Disney+ 2 HD"
+    },
+    {
+      "slug": "disney3",
+      "name": "Disney+ 3 HD"
+    },
+    {
+      "slug": "disney4",
+      "name": "Disney+ 4 HD"
+    },
+    {
+      "slug": "disney5",
+      "name": "Disney+ 5 HD"
+    },
+    {
+      "slug": "disney6",
+      "name": "Disney+ 6 HD"
+    },
+    {
+      "slug": "disney7",
+      "name": "Disney+ 7 HD"
+    },
+    {
+      "slug": "disney8",
+      "name": "Disney+ 8 HD"
+    },
+    {
+      "slug": "disney9",
+      "name": "Disney+ 9 HD"
+    },
+    {
+      "slug": "disney10",
+      "name": "Disney+ 10 HD"
+    },
+    {
+      "slug": "disney11",
+      "name": "Disney+ 11 HD"
+    },
+    {
+      "slug": "disney12",
+      "name": "Disney+ 12 HD"
+    },
+    {
+      "slug": "disney13",
+      "name": "Disney+ 13 HD"
+    },
+    {
+      "slug": "disney14",
+      "name": "Disney+ 14 HD"
+    },
+    {
+      "slug": "disney15",
+      "name": "Disney+ 15 HD"
+    },
+    {
+      "slug": "telemundo",
+      "name": "Telemundo"
+    },
+    {
+      "slug": "winsports",
+      "name": "Win Sports"
+    },
+    {
+      "slug": "winsports2",
+      "name": "Win Sports+"
+    },
+    {
+      "slug": "espndeportes",
+      "name": "ESPN Deportes"
+    },
+    {
+      "slug": "liga1max",
+      "name": "Liga 1 Max"
+    },
+    {
+      "slug": "movistardeportes",
+      "name": "Movistar Deportes"
+    }
+  ],
+  "aliases": {
+    "espn": "espn",
+    "espn1": "espn",
+    "espn2": "espn2",
+    "espn3": "espn3",
+    "espn4": "espn4",
+    "espn5": "espn5",
+    "espn6": "espn6",
+    "espn7": "espn7",
+    "espnpremium": "espnpremium",
+    "espnextra": "espnextra",
+    "espnmx": "espnmx",
+    "espn2mx": "espn2mx",
+    "espn3mx": "espn3mx",
+    "espn4mx": "espn4mx",
+    "espnplus": "espnplus",
+    "fox1": "fox1ar",
+    "fox1ar": "fox1ar",
+    "fox": "foxsports",
+    "foxsports": "foxsports",
+    "foxsportsar": "foxsportsar",
+    "foxsports1": "foxsports",
+    "fox2": "fox2ar",
+    "fox2ar": "fox2ar",
+    "foxsports2": "foxsports2",
+    "foxsports2ar": "fox2ar",
+    "fox3": "foxsports3",
+    "foxsports3": "foxsports3",
+    "foxsportsmx": "foxsportsmx",
+    "foxsports2mx": "foxsports2mx",
+    "foxsports3mx": "foxsports3mx",
+    "foxsportspremium": "foxsportspremium",
+    "foxpremium": "foxsportspremium",
+    "dsports": "dsports",
+    "dsports1": "dsports",
+    "dsports2": "dsports2",
+    "dsportsplus": "dsportsplus",
+    "dsports3": "dsportsplus",
+    "dsports_eventos": "dsports_eventos",
+    "tyc": "tycsports",
+    "tycsports": "tycsports",
+    "tntsports": "tntsports",
+    "tntsportschile": "tntsportschile",
+    "golperu": "golperu",
+    "winplus": "winplus",
+    "winsports": "winsports",
+    "telefe": "telefe",
+    "caracol": "caracol",
+    "americatv": "americatv",
+    "max1": "max1",
+    "max2": "max2",
+    "max3": "max3",
+    "tudn": "tudn",
+    "tudn_mx": "tudn_mx",
+    "vix1": "vix1",
+    "vix2": "vix2",
+    "laligatv": "laligatv",
+    "dazn1": "dazn1",
+    "dazn2": "dazn2",
+    "movistarliga": "movistarliga",
+    "movistar-laliga": "movistarliga",
+    "canal5": "canal5",
+    "azteca7": "azteca7",
+    "univision": "univision",
+    "universo": "universo",
+    "disney1": "disney1",
+    "disney-1": "disney1",
+    "disney2": "disney2",
+    "disney-2": "disney2",
+    "disney3": "disney3",
+    "disney-3": "disney3",
+    "disney4": "disney4",
+    "disney-4": "disney4",
+    "disney5": "disney5",
+    "disney-5": "disney5",
+    "disney6": "disney6",
+    "disney-6": "disney6",
+    "disney7": "disney7",
+    "disney-7": "disney7",
+    "disney8": "disney8",
+    "disney-8": "disney8",
+    "disney9": "disney9",
+    "disney-9": "disney9",
+    "disney10": "disney10",
+    "disney-10": "disney10",
+    "disney11": "disney11",
+    "disney-11": "disney11",
+    "disney12": "disney12",
+    "disney-12": "disney12",
+    "disney13": "disney13",
+    "disney-13": "disney13",
+    "disney14": "disney14",
+    "disney-14": "disney14",
+    "disney15": "disney15",
+    "disney-15": "disney15",
+    "telemundo": "telemundo",
+    "winsports2": "winsports2",
+    "espndeportes": "espndeportes",
+    "liga1max": "liga1max",
+    "movistardeportes": "movistardeportes",
+    "espn-1": "espn",
+    "espn-2": "espn2",
+    "espn-3": "espn3",
+    "espn-4": "espn4",
+    "espn-5": "espn5",
+    "espn-6": "espn6",
+    "espn-7": "espn7",
+    "espn-premium": "espnpremium",
+    "espn-extra": "espnextra",
+    "espn-mx": "espnmx",
+    "espn-2mx": "espn2mx",
+    "espn-3mx": "espn3mx",
+    "fox-sports": "foxsports",
+    "fox-sports-1": "foxsports",
+    "fox-sports-2": "foxsports2",
+    "fox-sports-3": "foxsports3",
+    "fox-sports-mx": "foxsportsmx",
+    "fox-sports-2mx": "foxsports2mx",
+    "fox-sports-3mx": "foxsports3mx",
+    "fox-sports-premium": "foxsportspremium",
+    "dsports-1": "dsports",
+    "dsports-2": "dsports2",
+    "dsports-plus": "dsportsplus",
+    "tyc-sports": "tycsports",
+    "tnt-sports": "tntsports",
+    "win-plus": "winplus",
+    "win-sports": "winsports",
+    "liga-1-max": "liga1max",
+    "movistar-deportes": "movistardeportes",
+    "laliga-tv": "laligatv",
+    "dazn-1": "dazn1",
+    "tudnmx": "tudn_mx",
+    "tudn-mx": "tudn_mx",
+    "vix-1": "vix1",
+    "max-1": "max1",
+    "max-2": "max2",
+    "max-3": "max3",
+    "vix-2": "vix2",
+    "dazn-2": "dazn2",
+    "canal-5": "canal5",
+    "azteca-7": "azteca7"
+  },
+  "pages": {
+    "espn": "espn-1",
+    "espn1": "espn-1",
+    "espn2": "espn-2",
+    "espn3": "espn-3"
+  }
+}

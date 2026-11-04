@@ -23,7 +23,7 @@ No sirve arrastrar solamente `dist` a Netlify Drop: faltarán las funciones. Usa
 - Cada señal se identifica por su URL completa. Opciones con el mismo nombre o parámetro `stream` pueden apuntar a distintos proveedores.
 - Selección de canal con fuentes de respaldo internas y recuperación automática ante errores o congelación, sin elegir proveedores manualmente.
 - Controles de video, reintento y pantalla completa.
-- Directorio de las señales de la agenda del día y enlace a `@elasdelfutbol`.
+- Directorio de 72 canales importado del bot uno, además de las señales publicadas del día, y enlace a `@elasdelfutbol`.
 
 
 La página no añade anuncios ni abre iframes publicitarios. Los anuncios incrustados en la señal de origen y su disponibilidad dependen del proveedor. No se garantiza reproducción de una fuente bloqueada, protegida o caída.
@@ -46,3 +46,5 @@ Documentación: [Functions](https://docs.netlify.com/build/functions/overview/),
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.
 
 La recuperación utiliza solo fuentes registradas del mismo canal. Comprueba la lista HLS antes de reproducir y prefiere el último proveedor que respondió. Si todas las fuentes de ese canal fallan, muestra un error y detiene los intentos; no garantiza disponibilidad de proveedores externos.
+
+El catálogo se importó de `TR_CHANNELS`, `CHANNEL_NAMES` y los alias de `channel_source.py` del bot uno. Las solicitudes de manifiestos, claves y segmentos conservan `Referer`, `Origin` y el mismo User-Agent del bot. La web usa HLS; la conversión continua FFmpeg → Telegram del bot requiere un proceso persistente y no se ejecuta en Functions.

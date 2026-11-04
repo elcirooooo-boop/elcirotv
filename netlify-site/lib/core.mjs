@@ -1,4 +1,5 @@
 import {createHash, createHmac, timingSafeEqual} from 'node:crypto';
+import {botChannels,channelSlug,botSourceURLs} from './catalog.mjs';
 export const hash = value => createHash('sha256').update(value).digest('hex').slice(0,24);
 export const dayOf = date => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 const slug = value => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -36,22 +37,13 @@ export function normalize(payload, now=new Date()) {
   return events;
 }
 export function withAlternatives(signals) {
-  const supported=new Set(['espn','espn2','espn3','espn4','espn5','espn6','espn7','espnpremium','foxsports','foxsports2','foxsports3','dsports','dsports2','dsportsplus','tntsports','tycsports','liga1max']);
   return signals.map(signal=>{
-    const source=new URL(signal.url),publishedStream=source.searchParams.get('stream');
-    const espnName=signal.name.match(/^ESPN\s*([1-7])?\s*(?:M[oó]vil|HD)?$/i);
-    const stream=publishedStream||(espnName?('espn'+(espnName[1]==='1'?'':espnName[1]||'')):null);
-    const sources=[];
-    // Register backups internally; the visitor still selects the original channel.
-    if((['la18hd.su','www.la18hd.su'].includes(source.hostname)||espnName)&&supported.has(stream)){
-      for(const page of ['5.php','plus1.php']){
-        const url='https://tvf90.com/'+page+'?stream='+encodeURIComponent(stream);
-        sources.push({id:hash(url),url});
-      }
-    }
-    sources.push({id:hash(signal.url),url:signal.url});
-    return {...signal,sources};
+    const slug=channelSlug(signal),urls=[...botSourceURLs(slug),signal.url];
+    return {...signal,sources:[...new Set(urls)].map(url=>({id:hash(url),url}))};
   });
+}
+export function catalogSignals(){
+  return withAlternatives(botChannels.map(channel=>({id:hash('catalog:'+channel.slug),name:channel.name,slug:channel.slug,url:botSourceURLs(channel.slug)[0],lang:'Español'})));
 }
 export function merge(feeds) {
   const events=new Map();
@@ -64,7 +56,7 @@ export function merge(feeds) {
 }
 export function publicAgenda(data) {
   const hide = ({url,sources,...signal})=>signal;
-  const channels=new Map();
+  const channels=new Map(catalogSignals().map(signal=>[signal.id,hide(signal)]));
   const events=data.events.map(event=>({...event,signals:event.signals.map(s=>{channels.set(s.id,hide(s));return hide(s);})}));
   return {day:data.day,updatedAt:data.updatedAt,stale:!!data.stale,events,channels:[...channels.values()]};
 }

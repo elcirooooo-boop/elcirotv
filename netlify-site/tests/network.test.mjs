@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import {pinnedLookup} from '../lib/network.mjs';
+import {pinnedLookup,playbackHeaders} from '../lib/network.mjs';
+test('media requests carry the same Origin and browser identity as bot one',()=>{
+  const headers=playbackHeaders('https://tvf90.com/5.php?stream=espn3');
+  assert.equal(headers.Origin,'https://tvf90.com');assert.equal(headers.Referer,'https://tvf90.com/5.php?stream=espn3');assert.ok(headers['User-Agent'].includes('Chrome/122'));
+  assert.equal(playbackHeaders('bad\r\nInjected: yes').Referer,undefined);
+});
 test('Node automatic family selection can connect using the pinned lookup',async()=>{
   const server=net.createServer(socket=>socket.end());
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));

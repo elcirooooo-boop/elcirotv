@@ -17,7 +17,7 @@ test('merge preserves competition and exact kick-off identity',()=>{
 });
 test('old schedules excluded and public response hides upstream sources',()=>{
   assert.deepEqual(normalize(fixture({date_diary:'2026-11-02'}),now),[]);
-  const data=publicAgenda({day:'2026-11-03',events:normalize(fixture(),now)});assert.ok(!JSON.stringify(data).includes('https://'));assert.equal(data.channels.length,2);
+  const data=publicAgenda({day:'2026-11-03',events:normalize(fixture(),now)});assert.ok(!JSON.stringify(data).includes('https://'));assert.ok(data.channels.length>=72);assert.equal(data.events[0].signals.length,2);
 });
 test('manifest signs variants, key and relative segments; rejects tampering and expiry',()=>{
   const expiry=Math.floor(Date.now()/1000)+60;
