@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {catalogSignals,publicAgenda,withAlternatives} from '../lib/core.mjs';
+import {botSourceURLs} from '../lib/catalog.mjs';
 test('full bot one directory is available without relying on today’s agenda',()=>{
   const directory=catalogSignals();assert.equal(directory.length,72);assert.equal(new Set(directory.map(c=>c.id)).size,72);
   for(const slug of ['espn','espn7','dsports','dsportsplus','disney1','disney15','tudn','max1'])assert.ok(directory.some(c=>c.slug===slug));
   assert.equal(publicAgenda({day:'2026-11-03',events:[]}).channels.length,72);
+});
+test('bot alias normalization is retained for provider fallbacks',()=>{
+  assert.ok(botSourceURLs('winsports2').includes('https://la18hd.su/vivo/canal.php?stream=winplus'));
+  assert.ok(botSourceURLs('dsports_eventos').includes('https://tvf90.com/5.php?stream=dsports-eventos'));
+  assert.ok(botSourceURLs('dsports_eventos').includes('https://tvf90.com/5.php?stream=dsportseventos'));
 });
 test('unknown event does not get a guessed replacement channel',()=>{
   const signal={id:'unknown',name:'Court 99',url:'https://la18hd.su/vivo/canal.php?stream=court99'};

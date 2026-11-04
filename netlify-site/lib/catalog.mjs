@@ -11,8 +11,11 @@ export function channelSlug(signal){
 }
 export function botSourceURLs(slug){
   if(!botChannels.some(c=>c.slug===slug))return [];
-  const encoded=encodeURIComponent(slug);
-  const sources=[`https://tvf90.com/5.php?stream=${encoded}`,`https://tvf90.com/plus1.php?stream=${encoded}`,`https://la18hd.su/vivo/canal.php?stream=${encoded}`];
+  const clean=slug.replaceAll('_','-'),encoded=encodeURIComponent(clean);
+  const sources=[`https://tvf90.com/5.php?stream=${encoded}`,`https://tvf90.com/plus1.php?stream=${encoded}`];
+  const compact=clean.replaceAll('-','');if(compact!==clean)sources.push(`https://tvf90.com/5.php?stream=${encodeURIComponent(compact)}`);
+  const providerSlug=catalog.providerAliases?.[slug]||catalog.providerAliases?.[clean]||slug;
+  sources.push(`https://la18hd.su/vivo/canal.php?stream=${encodeURIComponent(providerSlug)}`);
   const page=catalog.pages[slug];if(page)sources.push('https://rojadirectatvplay.org/en-vivo/'+page);
   return sources;
 }
