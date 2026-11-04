@@ -15,6 +15,14 @@
   to = "/.netlify/functions/api/:splat"
   status = 200
 
+# Keep source resolution and video downloads on the existing persistent relay.
+# The CDN proxy avoids a new serverless invocation and signing-key read per chunk.
+[[redirects]]
+  from = "/stream/live/*"
+  to = "https://web-production-dc68f.up.railway.app/stream/live/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
