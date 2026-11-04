@@ -45,6 +45,8 @@ Las reglas de `public/_redirects` y `netlify.toml` envían `/stream/live/*` desd
 
 El servicio prepara hasta tres fragmentos recientes de la misma fuente en paralelo. La caché es privada, limitada a 48 MB por proceso y 45 segundos, y agrupa solicitudes simultáneas del mismo fragmento. Solo se guardan archivos completos; las respuestas vacías, truncadas o de error no entran en caché. Los diagnósticos se escriben en segundo plano para que una espera de SQLite no detenga el video. Las peticiones con Range conservan su ruta compatible.
 
+El servicio web usa un trabajador Gunicorn con 24 hilos para compartir esa caché entre las conexiones. No aumentar los procesos sin añadir primero una caché compartida entre procesos: un fragmento preparado por un trabajador puede haber desaparecido del origen cuando otro intenta volver a descargarlo. Las denegaciones HTTP 401/403 del origen se conservan en listas y fragmentos para que el cliente renueve la sesión, en lugar de reintentar un enlace vencido como si fuera un fallo 502 temporal.
+
 Documentación: [Functions](https://docs.netlify.com/build/functions/overview/), [límites de respuesta](https://docs.netlify.com/build/functions/api/), [Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/).
 
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.
