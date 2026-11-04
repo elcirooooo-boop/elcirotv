@@ -1,12 +1,13 @@
-import {matchShareData,copyShareLink,shareMatch} from './share.js';
+import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
 let playerGeneration=0,watchdog;
+let updateMatchShare=()=>{};
 let data,hls,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 async function api(path,options){const r=await fetch('/api/'+path,options);const value=await r.json();if(!r.ok)throw Error(value.error||'No disponible.');return value;}
-function link(event){return '/partido/'+event.id;}
+function link(event){return matchPath(event);}
 function heartbeat(){
   const payload={session,match:currentMatch,playing:!!video&&!video.paused&&!video.ended&&video.readyState>=3&&Date.now()-lastProgress<8000};
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
@@ -22,6 +23,7 @@ async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver canal ↗</span></button>`).join('');}
 async function play(signal,signals){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
+  updateMatchShare(signal);
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const status=document.querySelector('#signalStatus'),excluded=new Set();
@@ -82,19 +84,27 @@ async function play(signal,signals){
 function chooser(event,signals){
   main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${event.time}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
-    const shareData=matchShareData(event,location.origin);
+    let channel=sharedSignal(event,location.search)||signals[0];
+    const getShareData=()=>matchShareData(event,location.origin,channel);
     const sharing=document.createElement('section');sharing.className='match-sharing';sharing.setAttribute('aria-label','Compartir este partido');
     sharing.innerHTML=`<div class="share-actions"><button type="button" data-share>Compartir partido ↗</button><button type="button" data-copy>Copiar enlace</button></div><p class="share-feedback" role="status" aria-live="polite"></p><label class="share-manual" hidden>Enlace directo al partido<input type="url" readonly aria-label="Enlace directo al partido"></label>`;
-    const feedback=sharing.querySelector('.share-feedback'),manual=sharing.querySelector('.share-manual'),input=sharing.querySelector('input');input.value=shareData.url;
+    const feedback=sharing.querySelector('.share-feedback'),manual=sharing.querySelector('.share-manual'),input=sharing.querySelector('input');input.value=getShareData().url;
+    const destination=document.createElement('p');destination.className='share-destination';sharing.append(destination);
+    updateMatchShare=signal=>{
+      channel=signals.find(s=>s.id===signal?.id);input.value=getShareData().url;
+      destination.textContent=channel?'El enlace abrirá directamente '+channel.name+'.':'Comparte el enlace de este partido.';
+      feedback.textContent='';manual.hidden=true;
+    };
+    updateMatchShare(channel);
     const report=result=>{
       if(!sharing.isConnected)return;
       feedback.textContent=result==='copied'?'Enlace del partido copiado.':result==='manual'?'Selecciona el enlace y cópialo para compartirlo.':'';
       manual.hidden=result!=='manual';if(result==='manual'){input.focus();input.select();}
     };
-    sharing.querySelector('[data-share]').onclick=async()=>report(await shareMatch(shareData));
-    sharing.querySelector('[data-copy]').onclick=async()=>report(await copyShareLink(shareData));
+    sharing.querySelector('[data-share]').onclick=async()=>report(await shareMatch(getShareData()));
+    sharing.querySelector('[data-copy]').onclick=async()=>report(await copyShareLink(getShareData()));
     main.querySelector('#videoSection').before(sharing);
-    document.title=shareData.title;
+    document.title=getShareData().title;
   }
   main.querySelectorAll('[data-signal]').forEach(b=>b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals));
 }
@@ -109,6 +119,7 @@ function listing(channels=false){
 }
 async function render(){
   stop();currentMatch='';
+  updateMatchShare=()=>{};
   document.title='El Ciro · Deportes en directo';
   document.querySelectorAll('.main-nav a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   try{
@@ -116,8 +127,16 @@ async function render(){
     if(location.pathname==='/')listing();
     else if(location.pathname==='/canales')listing(true);
     else if(location.pathname.startsWith('/partido/')){
-      const event=data.events.find(e=>link(e)===location.pathname);
+      const event=data.events.find(e=>e.id===matchIdFromPath(location.pathname));
       if(!event)throw Error('Este partido ya no está publicado en la agenda de hoy.');currentMatch=event.id;chooser(event,event.signals);
+      const requested=new URLSearchParams(location.search).get('canal');
+      if(requested){
+        const signal=sharedSignal(event,location.search);
+        if(signal)void play(signal,event.signals);
+        else{
+          const notice=document.createElement('p');notice.className='player-note';notice.setAttribute('role','status');notice.textContent='El canal compartido ya no está disponible para este partido. Selecciona otro canal de la lista.';main.querySelector('.match-channels').before(notice);
+        }
+      }
     }else if(location.pathname.startsWith('/canal/')){
       const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);
     }else throw Error('No encontramos esta página.');
