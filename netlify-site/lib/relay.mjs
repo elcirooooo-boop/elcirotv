@@ -2,7 +2,7 @@ import {botChannels,channelSlug} from './catalog.mjs';
 import {hash} from './core.mjs';
 const registered=new Set(botChannels.map(channel=>channel.slug));
 const players=new Set(['tvf90.com','la18hd.su','tarjetadigital.club','rojadirectatvplay.org','rojadirectatvmas.net'].flatMap(host=>[host,'www.'+host]));
-const service='https://web-production-dc68f.up.railway.app';
+export const service='https://web-production-dc68f.up.railway.app';
 
 export function relayPlayback(signal,{refresh=false,now=Date.now}={}){
   let slug;

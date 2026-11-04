@@ -55,4 +55,6 @@ Cada partido muestra un contador público de espectadores activos aproximados. S
 
 La recuperación conserva el mismo canal y solicita una sesión nueva únicamente cuando es necesaria. El servicio persistente administra sus fuentes; el cliente no excluye una ruta entera al fallar una sesión. Los reintentos son limitados y se detienen al salir de la página. No se garantiza disponibilidad de proveedores externos.
 
+Antes de abrir una sesión, se comprueba `/health` del servicio con un límite de dos segundos y una caché de diez segundos. Si el servicio está caído, su dominio desaparece o no puede emitir una sesión, se prueban las fuentes registradas del mismo canal por la ruta compatible de Netlify. Cuando vuelve el servicio, las nuevas sesiones lo utilizan automáticamente. Este respaldo es de emergencia y no sustituye mantener operativo el servicio persistente de video.
+
 El catálogo se importó de `TR_CHANNELS`, `CHANNEL_NAMES` y los alias de `channel_source.py` del bot uno. Las solicitudes de manifiestos, claves y segmentos conservan `Referer`, `Origin` y el mismo User-Agent del bot. La web usa HLS; la conversión continua FFmpeg → Telegram del bot requiere un proceso persistente y no se ejecuta en Functions.
