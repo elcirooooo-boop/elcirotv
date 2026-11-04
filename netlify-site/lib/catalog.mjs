@@ -1,5 +1,10 @@
 import catalog from './bot-catalog.json' with {type:'json'};
 export const botChannels=catalog.channels;
+// Exact additional channel/provider published by the match agenda. Keep the
+// numbered stream unchanged; /1.php is the player variant, not Premiere 1.
+const supplementalSources={
+  premiere5:['https://tvf90.com/1.php?stream=premiere5'],
+};
 export function channelSlug(signal){
   const url=new URL(signal.url),published=url.searchParams.get('stream');
   if(published)return catalog.aliases[published]||published;
@@ -10,6 +15,7 @@ export function channelSlug(signal){
   return catalog.aliases[simple]||null;
 }
 export function botSourceURLs(slug){
+  if(Object.hasOwn(supplementalSources,slug))return [...supplementalSources[slug]];
   if(!botChannels.some(c=>c.slug===slug))return [];
   const clean=slug.replaceAll('_','-'),encoded=encodeURIComponent(clean);
   const sources=[`https://tvf90.com/5.php?stream=${encoded}`,`https://tvf90.com/plus1.php?stream=${encoded}`];

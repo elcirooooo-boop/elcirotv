@@ -38,7 +38,7 @@ export function normalize(payload, now=new Date()) {
 }
 export function withAlternatives(signals) {
   return signals.map(signal=>{
-    const slug=channelSlug(signal),urls=[...botSourceURLs(slug),signal.url];
+    const slug=channelSlug(signal),urls=[...botSourceURLs(slug),...(signal.sources||[]).map(source=>source.url),signal.url];
     return {...signal,sources:[...new Set(urls)].map(url=>({id:hash(url),url}))};
   });
 }

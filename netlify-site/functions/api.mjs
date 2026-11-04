@@ -1,7 +1,7 @@
 import {Readable} from 'node:stream';
 import {getStore} from '@netlify/blobs';
 import {agenda} from '../lib/agenda.mjs';
-import {publicAgenda,grant,verify,manifest,catalogSignals} from '../lib/core.mjs';
+import {publicAgenda,grant,verify,manifest,catalogSignals,withAlternatives} from '../lib/core.mjs';
 import {request,read} from '../lib/network.mjs';
 import {bucket,viewerCounts} from '../lib/viewers.mjs';
 import {playbackKey} from '../lib/playback-key.mjs';
@@ -20,7 +20,10 @@ export default async function handler(req) {
       const source=catalogSignals().find(s=>s.id===id)||(await agenda()).events.flatMap(e=>e.signals).find(s=>s.id===id);
       if(!source)return json({error:'Esta señal ya no está publicada. Actualiza la agenda.'},404);
       const excluded=(url.searchParams.get('exclude')||'').split(',').filter(id=>/^[a-f0-9]{24}$/.test(id)).slice(0,8);
-      let route;try{route=await resolvePlaybackRoute(source,excluded,{refresh:url.searchParams.get('refresh')==='1'});}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
+      // Apply current provider registrations even when the day's agenda was
+      // loaded from an older cache entry.
+      const registered=withAlternatives([source])[0];
+      let route;try{route=await resolvePlaybackRoute(registered,excluded,{refresh:url.searchParams.get('refresh')==='1'});}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
       const {resolved}=route;
       return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackServices.playbackKey())),name:source.name,sourceKey:resolved.sourceKey,transport:'netlify'});
     }
