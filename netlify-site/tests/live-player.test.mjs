@@ -16,8 +16,8 @@ function harness({mse=true,resolve,autoplay=true}={}){
   class Hls{
     static isSupported(){return mse;}static Events={ERROR:'error',MEDIA_ATTACHED:'attached',MANIFEST_PARSED:'manifest'};static ErrorTypes={MEDIA_ERROR:'media',NETWORK_ERROR:'network'};
     constructor(config){this.config=config;this.handlers={};this.recoveries=0;this.starts=[];this.levels=[{}];players.push(this);}
-    on(name,fn){this.handlers[name]=fn;}attachMedia(v){this.video=v;this.handlers.attached();}loadSource(url){this.url=url;}
-    startLoad(...args){this.starts.push(args);}recoverMediaError(){this.recoveries++;}stopLoad(){this.stopped=true;}destroy(){this.destroyed=true;}
+    on(name,fn){this.handlers[name]=fn;}attachMedia(v){this.video=v;this.handlers.attached();}loadSource(url){this.loads=(this.loads||0)+1;this.url=url;}
+    startLoad(...args){this.starts.push(args);}recoverMediaError(){this.recoveries++;this.handlers.attached();this.video.paused=true;this.video.emit('pause');}stopLoad(){this.stopped=true;}destroy(){this.destroyed=true;}
     error(type='network',code=502){this.handlers.error(null,{fatal:true,type,response:{code}});}
   }
   const player=createLivePlayer({video,Hls,timers,now:()=>clock,onStatus:s=>statuses.push(s),resolveSource:async(excluded,signal)=>{calls.push([...excluded]);return resolve?resolve(excluded,signal):{url:'/api/media?t=test',sourceKey:excluded.includes('first')?'second':'first'};}});
@@ -40,7 +40,7 @@ test('only sustained failure re-resolves with backoff and eventually another pro
 test('decoder recovery retains the player before a delayed source refresh',async()=>{
   const h=harness();await start(h);const engine=h.players[0];engine.error('media');
   assert.equal(engine.recoveries,1);assert.equal(h.calls.length,1);engine.error('media');await h.advance(1000);
-  assert.equal(h.calls.length,2);assert.equal(engine.destroyed,true);
+  assert.equal(h.calls.length,2);assert.equal(engine.destroyed,true);assert.equal(engine.loads,1);
 });
 test('watchdog resumes downloads before considering a full reconnect',async()=>{
   const h=harness();await start(h);await h.advance(18000);
@@ -50,6 +50,15 @@ test('a signal that resumes during backoff cancels the unnecessary source reset'
   const h=harness();await start(h);h.video.currentTime=50;h.video.emit('timeupdate');
   h.players[0].error('network',403);h.video.currentTime=51;h.video.emit('timeupdate');await h.advance(2000);
   assert.equal(h.calls.length,1);assert.equal(h.players[0].destroyed,undefined);assert.equal(h.statuses.at(-1),'Reproduciendo');
+});
+test('a source that ends is excluded instead of replaying the same short clip',async()=>{
+  const h=harness();await start(h);h.video.ended=true;h.video.emit('ended');await h.advance(1000);
+  assert.deepEqual(h.calls[1],['first']);
+});
+test('queued pause from the previous channel does not cancel the new selection',async()=>{
+  let ready;const h=harness({resolve:()=>new Promise(resolve=>ready=resolve)});const opening=h.player.start();
+  h.video.emit('pause');ready({url:'/api/media?t=test',sourceKey:'first'});await opening;h.players[0].handlers.manifest();
+  assert.equal(h.video.plays,1);
 });
 test('pause is respected even when a recovery was scheduled',async()=>{
   const h=harness();await start(h);h.players[0].error('network',403);h.video.paused=true;h.video.emit('pause');
