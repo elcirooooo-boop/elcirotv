@@ -5,11 +5,6 @@ export function matchShareData(event,origin){
     url:new URL('/partido/'+encodeURIComponent(event.id),origin).href
   };
 }
-export function telegramShareURL(data){
-  const url=new URL('https://t.me/share/url');
-  url.searchParams.set('url',data.url);url.searchParams.set('text',data.text+' · El Ciro TV');
-  return url.href;
-}
 export async function copyShareLink(data,platform=navigator){
   try{
     if(!platform.clipboard?.writeText)return 'manual';

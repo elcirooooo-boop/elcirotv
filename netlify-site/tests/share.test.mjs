@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {matchShareData,telegramShareURL,copyShareLink,shareMatch} from '../public/share.js';
+import {matchShareData,copyShareLink,shareMatch} from '../public/share.js';
 const event={id:'abc123',title:'Perú vs México',league:'Copa América',time:'20:30'};
 const data=matchShareData(event,'https://elcirotv.netlify.app');
-test('link opens the exact match and Telegram preserves accents and the direct URL',()=>{
+test('link opens the exact match and preserves the match title',()=>{
   assert.equal(data.url,'https://elcirotv.netlify.app/partido/abc123');
-  const telegram=new URL(telegramShareURL(data));assert.equal(telegram.searchParams.get('url'),data.url);assert.ok(telegram.searchParams.get('text').includes('Perú vs México'));
+  assert.ok(data.text.includes('Perú vs México'));
 });
 test('native sharing receives the direct match URL',async()=>{
   let received;assert.equal(await shareMatch(data,{share:async payload=>{received=payload;}}),'shared');assert.equal(received.url,data.url);
