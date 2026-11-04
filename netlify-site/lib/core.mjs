@@ -42,6 +42,30 @@ export function withAlternatives(signals) {
     return {...signal,sources:[...new Set(urls)].map(url=>({id:hash(url),url}))};
   });
 }
+// Only pool players actually published by the feeds, with an exact stream ID.
+// Similar labels, regional variants and numbered channels are never inferred.
+function publishedChannel(signal) {
+  try {
+    const url=new URL(signal.url),stream=url.searchParams.get('stream');
+    if(url.protocol!=='https:'||url.username||url.password||url.port)return null;
+    const host=url.hostname.replace(/^www\./,'');
+    if(!(host==='tvf90.com'&&/^\/(?:5|1|plus1)\.php$/.test(url.pathname))&&!(host==='la18hd.su'&&url.pathname==='/vivo/canal.php'))return null;
+    return /^[a-z0-9_-]{1,80}$/.test(stream||'')?stream:null;
+  }catch{return null;}
+}
+export function withPublishedAlternatives(signals,published=signals) {
+  const channels=new Map();
+  for(const signal of published){
+    const key=publishedChannel(signal);if(!key)continue;
+    if(!channels.has(key))channels.set(key,new Set());
+    channels.get(key).add(signal.url);
+  }
+  return withAlternatives(signals.map(signal=>{
+    const urls=channels.get(publishedChannel(signal));
+    if(!urls)return signal;
+    return {...signal,sources:[...(signal.sources||[]),...[...urls].map(url=>({id:hash(url),url}))]};
+  }));
+}
 export function catalogSignals(){
   return withAlternatives(botChannels.map(channel=>({id:hash('catalog:'+channel.slug),name:channel.name,slug:channel.slug,url:botSourceURLs(channel.slug)[0],lang:'Español'})));
 }
@@ -52,7 +76,8 @@ export function merge(feeds) {
     if (!existing) events.set(event.id,{...event,signals:[...event.signals]});
     else for (const signal of event.signals) if(!existing.signals.some(s=>s.id===signal.id)) existing.signals.push(signal);
   }
-  return [...events.values()].sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.title.localeCompare(b.title));
+  const merged=[...events.values()],published=merged.flatMap(event=>event.signals);
+  return merged.map(event=>({...event,signals:withPublishedAlternatives(event.signals,published)})).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.title.localeCompare(b.title));
 }
 export function publicAgenda(data) {
   const hide = ({url,sources,...signal})=>signal;
