@@ -1,6 +1,7 @@
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
+let playerGeneration=0,watchdog;
 let data,hls,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 async function api(path,options){const r=await fetch('/api/'+path,options);const value=await r.json();if(!r.ok)throw Error(value.error||'No disponible.');return value;}
@@ -12,36 +13,56 @@ function heartbeat(){
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){lastProgress=0;hls?.destroy();hls=null;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
+function stop(){playerGeneration++;clearInterval(watchdog);lastProgress=0;hls?.destroy();hls=null;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver canal ↗</span></button>`).join('');}
 async function play(signal,signals){
-  stop();selected=signal.id;const identity=selected;
-  const oldVideo=document.querySelector('video');video=oldVideo.cloneNode(false);oldVideo.replaceWith(video);document.querySelector('#videoSection').hidden=false;
+  stop();selected=signal.id;const generation=playerGeneration,identity=selected;
+  document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
-  const status=document.querySelector('#signalStatus');status.textContent='Conectando con '+signal.name+'…';
-  video.addEventListener('timeupdate',()=>{if(selected===identity)lastProgress=Date.now();});
-  const fail=()=>{lastProgress=0;void heartbeat();if(selected===identity)status.textContent='Esta señal no responde. Reintenta o elige otro canal disponible.';};
-  video.addEventListener('playing',()=>{if(selected===identity){lastProgress=Date.now();status.textContent=signal.name+' · Reproduciendo';void heartbeat().then(refreshViewers);}});
-  video.addEventListener('pause',()=>void heartbeat().then(refreshViewers));video.addEventListener('ended',()=>void heartbeat().then(refreshViewers));video.addEventListener('error',fail,{once:true});
+  const status=document.querySelector('#signalStatus'),excluded=new Set();
+  let attempts=0,sourceKey='',connecting=false,started=Date.now(),wanted=true,finished=false,progressTime=-1;
+  const active=()=>playerGeneration===generation&&selected===identity;
+  const recover=()=>{
+    if(!active()||connecting||finished)return;
+    lastProgress=0;void heartbeat();
+    if(attempts>=5){finished=true;status.textContent='El canal no está disponible en este momento. Puedes reintentar más tarde.';return;}
+    if(attempts>1&&sourceKey)excluded.add(sourceKey);
+    void connect();
+  };
+  async function connect(){
+    if(!active())return;connecting=true;attempts++;started=Date.now();
+    status.textContent=attempts===1?'Conectando con '+signal.name+'…':'Recuperando '+signal.name+'…';
+    hls?.destroy();hls=null;
+    const oldVideo=document.querySelector('video'),current=oldVideo.cloneNode(false);oldVideo.pause();oldVideo.removeAttribute('src');oldVideo.load();oldVideo.replaceWith(current);video=current;progressTime=-1;
+    current.addEventListener('timeupdate',()=>{if(active()&&current===video&&current.currentTime!==progressTime){progressTime=current.currentTime;lastProgress=Date.now();}});
+    current.addEventListener('playing',()=>{if(active()&&current===video){wanted=true;lastProgress=Date.now();status.textContent=signal.name+' · Reproduciendo';void heartbeat().then(refreshViewers);}});
+    current.addEventListener('pause',()=>{if(active()&&current===video){wanted=false;void heartbeat().then(refreshViewers);}});
+    current.addEventListener('play',()=>{if(active()&&current===video){wanted=true;started=Date.now();}});
+    current.addEventListener('ended',recover);
+    current.addEventListener('error',recover);
+    try{
+      const source=await api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent([...excluded].join(',')));
+      if(!active())return;sourceKey=source.sourceKey||'';
+      connecting=false;wanted=true;started=Date.now();
+      if(current.canPlayType('application/vnd.apple.mpegurl'))current.src=source.url;
+      else if(window.Hls?.isSupported()){
+        hls=new Hls({maxBufferLength:25,maxMaxBufferLength:45});hls.on(Hls.Events.ERROR,(_,error)=>{if(error.fatal)recover();});hls.loadSource(source.url);hls.attachMedia(current);
+      }else{finished=true;status.textContent='Este navegador no admite la reproducción.';return;}
+      void current.play().catch(error=>{if(!active()||current!==video)return;if(error.name==='NotAllowedError'){wanted=false;status.textContent='Toca reproducir para ver '+signal.name+'.';}else if(error.name!=='AbortError')recover();});
+    }catch(error){if(active()){connecting=false;finished=true;status.textContent=error.message;}}
+  }
   document.querySelector('#retry').onclick=()=>play(signal,signals);
-  document.querySelector('#nextSignal').onclick=()=>play(signals[(signals.findIndex(s=>s.id===identity)+1)%signals.length],signals);
   document.querySelector('#fullscreen').onclick=()=>{if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};
-  try{
-    const source=await api('play?source='+encodeURIComponent(identity));if(selected!==identity)return;
-    if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=source.url;}
-    else if(window.Hls?.isSupported()){
-      hls=new Hls({maxBufferLength:25,maxMaxBufferLength:45});hls.on(Hls.Events.ERROR,(_,error)=>{if(error.fatal)fail();});hls.loadSource(source.url);hls.attachMedia(video);
-    }else{status.textContent='Este navegador no admite la reproducción. Prueba Safari, Chrome o Edge actualizado.';return;}
-    void video.play().catch(()=>{if(selected===identity)status.textContent='Toca reproducir para ver '+signal.name+'.';});
-  }catch(error){if(selected===identity)status.textContent=error.message;}
-  document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
+  watchdog=setInterval(()=>{if(active()&&wanted&&!connecting&&Date.now()-Math.max(lastProgress,started)>25000)recover();},3000);
+  await connect();
+  if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${event.time}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="nextSignal" ${signals.length<2?'hidden':''}>Probar otro canal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${event.time}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   main.querySelectorAll('[data-signal]').forEach(b=>b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals));
 }
 function listing(channels=false){

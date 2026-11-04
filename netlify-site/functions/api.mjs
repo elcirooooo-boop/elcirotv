@@ -2,9 +2,10 @@ import {Readable} from 'node:stream';
 import {getStore} from '@netlify/blobs';
 import {agenda} from '../lib/agenda.mjs';
 import {publicAgenda,grant,verify,manifest} from '../lib/core.mjs';
-import {resolve,request,read} from '../lib/network.mjs';
+import {request,read} from '../lib/network.mjs';
 import {bucket,viewerCounts} from '../lib/viewers.mjs';
 import {playbackKey} from '../lib/playback-key.mjs';
+import {selectPlayback} from '../lib/playback.mjs';
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 export default async function handler(req) {
   const url=new URL(req.url),action=url.pathname.split('/').filter(Boolean).at(-1);
@@ -15,8 +16,9 @@ export default async function handler(req) {
     if(action==='play'){
       const data=await agenda(),source=data.events.flatMap(e=>e.signals).find(s=>s.id===url.searchParams.get('source'));
       if(!source)return json({error:'Esta señal ya no está publicada. Actualiza la agenda.'},404);
-      const resolved=await resolve(source.url);
-      return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackKey())),name:source.name});
+      const excluded=(url.searchParams.get('exclude')||'').split(',').filter(id=>/^[a-f0-9]{24}$/.test(id)).slice(0,8);
+      let resolved;try{resolved=await selectPlayback(source,excluded);}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
+      return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackKey())),name:source.name,sourceKey:resolved.sourceKey});
     }
     if(action==='media'){
       const token=url.searchParams.get('t');

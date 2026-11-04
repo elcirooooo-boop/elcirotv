@@ -36,16 +36,22 @@ export function normalize(payload, now=new Date()) {
   return events;
 }
 export function withAlternatives(signals) {
-  const result=[...signals],seen=new Set(signals.map(s=>s.url));
-  // Explicit channel aliases: never infer a different event or a numbered Disney feed.
   const supported=new Set(['espn','espn2','espn3','espn4','espn5','espn6','espn7','espnpremium','foxsports','foxsports2','foxsports3','dsports','dsports2','dsportsplus','tntsports','tycsports','liga1max']);
-  for(const signal of signals){
-    const source=new URL(signal.url),stream=source.searchParams.get('stream');
-    if(!['la18hd.su','www.la18hd.su'].includes(source.hostname)||!supported.has(stream))continue;
-    const url='https://tvf90.com/5.php?stream='+encodeURIComponent(stream);
-    if(!seen.has(url)){result.unshift({id:hash(url),name:signal.name+' · alternativa',url,lang:signal.lang});seen.add(url);}
-  }
-  return result;
+  return signals.map(signal=>{
+    const source=new URL(signal.url),publishedStream=source.searchParams.get('stream');
+    const espnName=signal.name.match(/^ESPN\s*([1-7])?\s*(?:M[oó]vil|HD)?$/i);
+    const stream=publishedStream||(espnName?('espn'+(espnName[1]==='1'?'':espnName[1]||'')):null);
+    const sources=[];
+    // Register backups internally; the visitor still selects the original channel.
+    if((['la18hd.su','www.la18hd.su'].includes(source.hostname)||espnName)&&supported.has(stream)){
+      for(const page of ['5.php','plus1.php']){
+        const url='https://tvf90.com/'+page+'?stream='+encodeURIComponent(stream);
+        sources.push({id:hash(url),url});
+      }
+    }
+    sources.push({id:hash(signal.url),url:signal.url});
+    return {...signal,sources};
+  });
 }
 export function merge(feeds) {
   const events=new Map();
@@ -57,7 +63,7 @@ export function merge(feeds) {
   return [...events.values()].sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.title.localeCompare(b.title));
 }
 export function publicAgenda(data) {
-  const hide = ({url,...signal})=>signal;
+  const hide = ({url,sources,...signal})=>signal;
   const channels=new Map();
   const events=data.events.map(event=>({...event,signals:event.signals.map(s=>{channels.set(s.id,hide(s));return hide(s);})}));
   return {day:data.day,updatedAt:data.updatedAt,stale:!!data.stale,events,channels:[...channels.values()]};

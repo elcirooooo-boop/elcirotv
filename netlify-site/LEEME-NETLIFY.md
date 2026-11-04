@@ -21,7 +21,8 @@ No sirve arrastrar solamente `dist` a Netlify Drop: faltarán las funciones. Usa
 - Agenda ordenada por hora y búsqueda por equipo, competición o canal.
 - Cada partido muestra todas sus señales publicadas antes de cargar el video.
 - Cada señal se identifica por su URL completa. Opciones con el mismo nombre o parámetro `stream` pueden apuntar a distintos proveedores.
-- Cambio manual de canal, reintento, controles de video y pantalla completa.
+- Selección de canal con fuentes de respaldo internas y recuperación automática ante errores o congelación, sin elegir proveedores manualmente.
+- Controles de video, reintento y pantalla completa.
 - Directorio de las señales de la agenda del día y enlace a `@elasdelfutbol`.
 
 
@@ -43,3 +44,5 @@ Los segmentos HLS pasan por Functions para conservar las cabeceras requeridas po
 Documentación: [Functions](https://docs.netlify.com/build/functions/overview/), [límites de respuesta](https://docs.netlify.com/build/functions/api/), [Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/).
 
 Cada partido muestra un contador público de espectadores activos aproximados. Se actualiza cada 30 segundos y descarta sesiones sin actividad después de 75 segundos. Cuenta reproducciones por pestaña, no personas identificadas. No existe panel de estadísticas ni contraseña de administración.
+
+La recuperación utiliza solo fuentes registradas del mismo canal. Comprueba la lista HLS antes de reproducir y prefiere el último proveedor que respondió. Si todas las fuentes de ese canal fallan, muestra un error y detiene los intentos; no garantiza disponibilidad de proveedores externos.
