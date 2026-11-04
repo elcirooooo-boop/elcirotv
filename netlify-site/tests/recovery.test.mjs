@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
-const code=(await readFile(new URL('../public/app.js',import.meta.url),'utf8')).replace(/void render\(\);\s*$/,'');
+const code=(await readFile(new URL('../public/app.js',import.meta.url),'utf8')).replace(/^import .*from '\.\/share.js';\s*/,'').replace(/void render\(\);\s*$/,'');
 function harness({mse=false}={}){
   const calls=[],elements=new Map(),intervals=new Set(),players=[];let currentVideo;
   class Video{

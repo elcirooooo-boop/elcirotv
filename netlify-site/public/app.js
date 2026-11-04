@@ -1,3 +1,4 @@
+import {matchShareData,telegramShareURL,copyShareLink,shareMatch} from './share.js';
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
@@ -80,6 +81,21 @@ async function play(signal,signals){
 }
 function chooser(event,signals){
   main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${event.time}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  if(event){
+    const shareData=matchShareData(event,location.origin);
+    const sharing=document.createElement('section');sharing.className='match-sharing';sharing.setAttribute('aria-label','Compartir este partido');
+    sharing.innerHTML=`<div class="share-actions"><button type="button" data-share>Compartir partido ↗</button><button type="button" data-copy>Copiar enlace</button><a href="${esc(telegramShareURL(shareData))}" target="_blank" rel="noopener noreferrer">Telegram ↗</a></div><p class="share-feedback" role="status" aria-live="polite"></p><label class="share-manual" hidden>Enlace directo al partido<input type="url" readonly aria-label="Enlace directo al partido"></label>`;
+    const feedback=sharing.querySelector('.share-feedback'),manual=sharing.querySelector('.share-manual'),input=sharing.querySelector('input');input.value=shareData.url;
+    const report=result=>{
+      if(!sharing.isConnected)return;
+      feedback.textContent=result==='copied'?'Enlace del partido copiado.':result==='manual'?'Selecciona el enlace y cópialo para compartirlo.':'';
+      manual.hidden=result!=='manual';if(result==='manual'){input.focus();input.select();}
+    };
+    sharing.querySelector('[data-share]').onclick=async()=>report(await shareMatch(shareData));
+    sharing.querySelector('[data-copy]').onclick=async()=>report(await copyShareLink(shareData));
+    main.querySelector('#videoSection').before(sharing);
+    document.title=shareData.title;
+  }
   main.querySelectorAll('[data-signal]').forEach(b=>b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals));
 }
 function listing(channels=false){
@@ -93,6 +109,7 @@ function listing(channels=false){
 }
 async function render(){
   stop();currentMatch='';
+  document.title='El Ciro · Deportes en directo';
   document.querySelectorAll('.main-nav a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   try{
     if(!data)await load();
