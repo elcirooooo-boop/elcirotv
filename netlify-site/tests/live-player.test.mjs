@@ -57,6 +57,11 @@ test('a source that ends is excluded instead of replaying the same short clip',a
   const h=harness();await start(h);h.video.ended=true;h.video.emit('ended');await h.advance(1000);
   assert.deepEqual(h.calls[1],['first']);
 });
+test('persistent relay recovery refreshes the session without excluding the entire channel',async()=>{
+  const h=harness({resolve:async()=>({url:'/stream/live/espn/master.m3u8',sourceKey:'relay',transport:'relay'})});await start(h);
+  for(let i=0;i<3;i++){h.players.at(-1).error('network',403);await h.advance(1000*2**i);}
+  assert.deepEqual(h.calls,[[],[],[],[]]);assert.equal(h.requests.at(-1).refresh,true);
+});
 test('queued pause from the previous channel does not cancel the new selection',async()=>{
   let ready;const h=harness({resolve:()=>new Promise(resolve=>ready=resolve)});const opening=h.player.start();
   h.video.emit('pause');ready({url:'/api/media?t=test',sourceKey:'first'});await opening;h.players[0].handlers.manifest();

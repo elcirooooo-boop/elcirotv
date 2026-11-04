@@ -6,6 +6,7 @@ import {request,read} from '../lib/network.mjs';
 import {bucket,viewerCounts} from '../lib/viewers.mjs';
 import {playbackKey} from '../lib/playback-key.mjs';
 import {selectPlayback} from '../lib/playback.mjs';
+import {openRelaySession} from '../lib/relay.mjs';
 const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
 export default async function handler(req) {
   const url=new URL(req.url),action=url.pathname.split('/').filter(Boolean).at(-1);
@@ -17,6 +18,8 @@ export default async function handler(req) {
       const id=url.searchParams.get('source');
       const source=catalogSignals().find(s=>s.id===id)||(await agenda()).events.flatMap(e=>e.signals).find(s=>s.id===id);
       if(!source)return json({error:'Esta señal ya no está publicada. Actualiza la agenda.'},404);
+      const relay=await openRelaySession(source,{refresh:url.searchParams.get('refresh')==='1'});
+      if(relay)return json(relay);
       const excluded=(url.searchParams.get('exclude')||'').split(',').filter(id=>/^[a-f0-9]{24}$/.test(id)).slice(0,8);
       let resolved;try{resolved=await selectPlayback(source,excluded,undefined,{refresh:url.searchParams.get('refresh')==='1'});}catch{return json({error:'Este canal no tiene una señal disponible en este momento.'},503);}
       return json({url:'/api/media?t='+encodeURIComponent(grant(resolved.url,resolved.referer,undefined,await playbackKey())),name:source.name,sourceKey:resolved.sourceKey});

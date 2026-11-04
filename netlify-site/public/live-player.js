@@ -2,7 +2,7 @@
 // the provider creates a new live timeline and is reserved for sustained loss.
 export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},now=Date.now,timers=globalThis}){
   let engine,disposed=false,connecting=false,replacing=true,wanted=true,pending,request;
-  let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='';
+  let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
   const status=text=>{if(!disposed)onStatus(text);};
   const listen=(name,fn)=>{video.addEventListener(name,fn);listeners.push([name,fn]);};
@@ -35,10 +35,10 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     try{
       // Retry the same provider first. Only sustained repeated failure moves to
       // another registered source for this channel.
-      if(reconnects>=2&&sourceKey)excluded.add(sourceKey);
+      if(reconnects>=2&&sourceKey&&!persistent)excluded.add(sourceKey);
       const source=await resolveSource([...excluded],request.signal,{refresh:reconnects>0});
       if(disposed)return;
-      sourceKey=source.sourceKey||'';replacing=true;
+      sourceKey=source.sourceKey||'';persistent=source.transport==='relay';replacing=true;
       engine?.destroy();engine=undefined;
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
@@ -78,7 +78,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   listen('pause',()=>{if(disposed||replacing||video.error||video.ended)return;wanted=false;timers.clearTimeout(pending);pending=undefined;status('En pausa');onState();});
   listen('waiting',()=>{if(!disposed&&wanted){stableSince=0;status('Cargando video…');}});
   listen('error',()=>{if(!disposed&&!replacing&&!engine)reconnect();});
-  listen('ended',()=>{if(!disposed){if(sourceKey)excluded.add(sourceKey);reconnect();}});
+  listen('ended',()=>{if(!disposed){if(sourceKey&&!persistent)excluded.add(sourceKey);reconnect();}});
   const watchdog=timers.setInterval(()=>{
     if(disposed||!wanted||connecting||pending)return;
     const stalled=now()-lastProgress;
