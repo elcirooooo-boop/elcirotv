@@ -22,7 +22,7 @@ async function worker() {
       if(!entries?.length)throw Error('No teams');
       for(const {team} of entries) {
         const logo = team.logos?.find(item=>item.rel?.includes('default'))?.href || team.logos?.[0]?.href;
-        if(!logo || !/^https:\/\/a\.espncdn\.com\/i\/teamlogos\//.test(logo))continue;
+        if(!logo || !/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(logo))continue;
         const key = `${sport}:${gender}:${team.id}`;
         const names = [team.displayName,team.name,team.shortDisplayName].filter(Boolean);
         const existing = teams.get(key);

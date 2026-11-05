@@ -8,6 +8,11 @@ const aliases = {
   'soccer:men:2528':['Kairat'],
   'soccer:men:2790':['Salzburg','Red Bull Salzburg'],
   'soccer:men:7239':['CS Cartagines'],
+  'soccer:men:4139':['Universidad Chile'],
+  'soccer:men:5362':['Univ. Concepción'],
+  'soccer:men:858':['Deportivo Saprissa'],
+  'soccer:men:862':['CS Herediano'],
+  'soccer:men:10129':['Leones Negros UdeG','Leones Negros UDG'],
 };
 const index = new Map();
 for(const team of catalogue) {
@@ -19,7 +24,8 @@ for(const team of catalogue) {
 }
 
 export function matchTeams(event) {
-  const parts = String(event.title || '').split(/\s+(?:vs?\.?|versus)\s+/iu).map(name=>name.trim());
+  const title = String(event.title || '').replace(/^(?:NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/i,'');
+  const parts = title.split(/\s+(?:vs?\.?|versus)\s+/iu).map(name=>name.trim());
   return parts.length === 2 && parts.every(Boolean) ? parts : [];
 }
 
@@ -41,10 +47,11 @@ export function teamBadge(name, league='') {
 export function teamBadges(event) {
   const names = matchTeams(event);
   if(!names.length)return '';
+  const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
   const badge = name => {
-    const team = teamBadge(name,event.league);
+    const team = teamBadge(name,league);
     const initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toLocaleUpperCase();
-    const logo = team && /^https:\/\/a\.espncdn\.com\/i\/teamlogos\//.test(team.logo) ? team.logo : '';
+    const logo = team && /^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo) ? team.logo : '';
     return `<span class="team-badge" title="${escape(name)}">${logo?`<img data-team-badge src="${escape(logo)}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="team-initials"${logo?' hidden':''}>${escape(initials)}</span></span>`;
   };
   return `<span class="match-badges" aria-hidden="true">${badge(names[0])}<span class="badge-versus">vs</span>${badge(names[1])}</span>`;

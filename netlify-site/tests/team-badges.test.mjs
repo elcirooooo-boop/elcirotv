@@ -14,6 +14,8 @@ test('matches official crests across accents and published club aliases',()=>{
   assert.equal(teamBadge('Lillestrøm')?.id,'soccer:men:987');
   assert.equal(teamBadge('Viktoria Plzeň')?.id,'soccer:men:11706');
   assert.equal(teamBadge('Sporting Braga')?.id,'soccer:men:2994');
+  assert.equal(teamBadge('Univ. Concepción')?.id,'soccer:men:5362');
+  assert.equal(teamBadge('Deportivo Saprissa')?.id,'soccer:men:858');
 });
 test('unknown, youth, and distinct sports do not borrow another team crest',()=>{
   assert.equal(teamBadge('Equipo sin identificar'),null);
@@ -22,6 +24,7 @@ test('unknown, youth, and distinct sports do not borrow another team crest',()=>
   assert.equal(teamBadge('Barcelona','Balonmano'),null);
   assert.equal(teamBadge('Arsenal','Premier League Femenina')?.gender,'women');
   assert.equal(teamBadge('Arsenal','Premier League')?.gender,'men');
+  assert.equal(teamBadge('Necaxa Femenil','Liga MX Femenil')?.id,'soccer:women:133983');
   assert.equal(teamBadge('Edmonton Oilers','NHL')?.sport,'hockey');
 });
 test('renders two real crests, keeps titles safe, and supplies neutral fallbacks',()=>{
@@ -33,6 +36,7 @@ test('renders two real crests, keeps titles safe, and supplies neutral fallbacks
   assert.ok(!unknown.includes('<script>'));
   assert.ok(unknown.includes('&lt;script&gt;'));
   assert.equal(teamBadges({title:'Carrera de Fórmula 1'}),'');
+  assert.equal((teamBadges({title:'NFL – Baltimore Ravens vs. Jacksonville Jaguars',league:'Deportes'}).match(/<img /g)||[]).length,2);
 });
 test('a failed image reveals the initials and removes the broken image',()=>{
   const fallback = {hidden:true}; let removed = false;
