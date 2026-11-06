@@ -4,6 +4,7 @@ import {writeFile} from 'node:fs/promises';
 
 const soccer = ['esp.1','eng.1','ita.1','ger.1','fra.1','por.1','ned.1','bel.1','sco.1','tur.1','gre.1','aut.1','sui.1','den.1','nor.1','swe.1','cze.1','pol.1','uefa.champions','uefa.europa','uefa.europa.conf','bra.1','bra.2','arg.1','arg.2','chi.1','chi.2','mex.1','mex.2','usa.1','col.1','ecu.1','per.1','uru.1','ven.1','par.1','bol.1','crc.1','hon.1','gua.1','slv.1','fifa.world'];
 const directories = [
+  ...['eng.2','eng.3','eng.4','eng.fa','esp.2','ger.2','ger.3','ned.2','fra.2','ita.2'].map(league=>['soccer',league,'men']),
   ...soccer.map(league=>['soccer',league,'men']),
   ...['eng.w.1','esp.w.1','mex.w.1','usa.nwsl','fifa.wwc'].map(league=>['soccer',league,'women']),
   ['basketball','nba','men'],['basketball','wnba','women'],
@@ -21,13 +22,18 @@ async function worker() {
       const entries = payload.sports?.[0]?.leagues?.[0]?.teams;
       if(!entries?.length)throw Error('No teams');
       for(const {team} of entries) {
-        const logo = team.logos?.find(item=>item.rel?.includes('default'))?.href || team.logos?.[0]?.href;
+        let logo = team.logos?.find(item=>item.rel?.includes('default'))?.href || team.logos?.[0]?.href;
+        if(!logo){
+          const candidate=`https://a.espncdn.com/i/teamlogos/${sport}/500/${team.id}.png`;
+          const image=await fetch(candidate,{method:'HEAD',signal:AbortSignal.timeout(7000)}).catch(()=>null);
+          if(image?.ok&&image.headers.get('content-type')?.startsWith('image/'))logo=candidate;
+        }
         if(!logo || !/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(logo))continue;
         const key = `${sport}:${gender}:${team.id}`;
         const names = [team.displayName,team.name,team.shortDisplayName].filter(Boolean);
         const existing = teams.get(key);
-        if(existing)existing.names = [...new Set([...existing.names,...names])];
-        else teams.set(key,{id:key,sport,gender,names:[...new Set(names)],logo});
+        if(existing){existing.names = [...new Set([...existing.names,...names])];existing.leagues=[...new Set([...existing.leagues,league])];}
+        else teams.set(key,{id:key,sport,gender,names:[...new Set(names)],logo,leagues:[league]});
       }
     } catch(error) { failures.push(`${sport}/${league}: ${error.message}`); }
   }
