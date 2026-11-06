@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {matchTeams,teamBadge,teamBadges,handleBadgeError,competitionBadge} from '../public/team-badges.js';
+import {matchTeams,teamBadge,teamBadges,handleBadgeError,competitionBadge,countryCode} from '../public/team-badges.js';
 
 test('splits published matchup titles without breaking hyphenated team names',()=>{
   assert.deepEqual(matchTeams({title:'Paris Saint-Germain vs Real Madrid'}),['Paris Saint-Germain','Real Madrid']);
@@ -51,6 +51,20 @@ test('the competition resolves clubs with ambiguous names',()=>{
   assert.equal(teamBadge('Platense','Liga Profesional')?.id,'soccer:men:7764');
   assert.equal(teamBadge('Deportivo Alavés','LaLiga')?.id,'soccer:men:96');
   assert.equal(teamBadge('Eintracht Braunschweig','2. Bundesliga')?.id,'soccer:men:3067');
+});
+test('national teams show local flags in Spanish and other published languages',()=>{
+  for(const [name,code] of [['España','es'],['Spain','es'],['Argentina','ar'],['Brasil','br'],['Brazil','br'],['Inglaterra','gb-eng'],['Portugal','pt'],['Estados Unidos','us']])assert.equal(countryCode(name),code);
+  const markup=teamBadges({title:'España vs Argentina',league:'Amistoso internacional'});
+  assert.ok(markup.includes('/flags/es.svg'));assert.ok(markup.includes('/flags/ar.svg'));
+  assert.ok(!markup.includes('espncdn'));
+  assert.ok(teamBadges({title:'Brasil vs Portugal',league:'Fútbol Sala'}).includes('/flags/br.svg'));
+});
+test('women and youth national teams retain flags without misclassifying clubs',()=>{
+  assert.equal(countryCode('España Sub-21'),'es');assert.equal(countryCode('Argentina Femenina'),'ar');
+  assert.equal(countryCode('Selección de España'),'es');
+  assert.equal(countryCode('Argentinos Juniors'),null);assert.equal(countryCode('Real España'),null);
+  assert.ok(!teamBadges({title:'Real España vs Real Madrid',league:'Liga'}).includes('/flags/'));
+  assert.ok(teamBadges({title:'España vs Argentina',league:'Copa Davis de tenis'}).includes('/flags/es.svg'));
 });
 test('a failed image reveals the initials and removes the broken image',()=>{
   const fallback = {hidden:true}; let removed = false;

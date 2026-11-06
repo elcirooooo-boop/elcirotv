@@ -1,4 +1,5 @@
 import catalogue from './team-badges-data.js';
+import countryFlags from './country-flags-data.js';
 
 const escape = value => String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const key = value => String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[øłđæß]/g,char=>({'ø':'o','ł':'l','đ':'d','æ':'ae','ß':'ss'}[char])).replace(/[^a-z0-9]+/g,' ').trim();
@@ -83,9 +84,18 @@ export function competitionBadge(event){
 function competitionMarkup(competition){
   return `<span class="match-badges competition-badge" aria-hidden="true" title="${escape(competition.label)}">${competition.logo?`<img data-team-badge src="${escape(competition.logo)}" alt="" width="64" height="40" loading="lazy"><span class="team-initials" hidden>DEP</span>`:''}<span class="competition-label">${escape(competition.label)}</span></span>`;
 }
+export function countryCode(name){
+  const country=key(name).replace(/^seleccion (?:nacional )?(?:de )?/,'').replace(/\b(?:sub|u)\s*\d{1,2}\b/g,'').replace(/\b(?:femenil|femenino|femenina|women|womens|masculino|masculina)\b/g,'').replace(/\s+/g,' ').trim();
+  return countryFlags[country] || null;
+}
 export function teamBadges(event) {
   const names = matchTeams(event);
   const competition=competitionBadge(event);
+  const countries=names.map(countryCode);
+  if(names.length===2&&countries.every(Boolean)){
+    const flags=names.map((name,i)=>`<span class="team-badge country-badge" title="${escape(name)}"><img data-team-badge class="country-flag" src="/flags/${countries[i]}.svg" alt="" width="32" height="24" loading="lazy" decoding="async"><span class="team-initials" hidden>${countries[i].slice(0,2).toUpperCase()}</span></span>`);
+    return `<span class="match-badges national-teams" aria-hidden="true">${flags[0]}<span class="badge-versus">vs</span>${flags[1]}</span>`;
+  }
   if(!names.length||competition.individual)return competitionMarkup(competition);
   const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
   const badge = name => {
