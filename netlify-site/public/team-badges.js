@@ -25,6 +25,7 @@ const aliases = {
   'soccer:men:3067':['Eintracht Braunschweig'],
   'soccer:men:10158':['Sarmiento'],
   'soccer:men:225':['Santos Laguna'],
+  'soccer:men:17530':['Venecia'],
 };
 const index = new Map();
 const candidates = new Map();

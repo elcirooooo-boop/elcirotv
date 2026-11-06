@@ -2,7 +2,7 @@ import {getStore} from '@netlify/blobs';
 import {normalize, merge, dayOf} from './core.mjs';
 import {request,read} from './network.mjs';
 let cached,loading;
-const agendaVersion=7;
+const agendaVersion=8;
 export async function agenda() {
   const now=new Date(),day=dayOf(now);
   if(cached?.version===agendaVersion&&cached.day===day&&Date.now()-cached.loaded<90000)return cached;

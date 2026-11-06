@@ -4,6 +4,9 @@ const text = value => String(value || '').toLowerCase().normalize('NFD').replace
 const competitions = new Map([
   ['liga profesional','liga profesional argentina'],
   ['liga profesional argentina','liga profesional argentina'],
+  ['primera a','colombia primera a'],
+  ['liga betplay','colombia primera a'],
+  ['liga betplay dimayor','colombia primera a'],
 ]);
 
 // Only known aliases are equivalent. A cup, women's competition, age group,
@@ -13,6 +16,8 @@ export function fixtureIdentity(event) {
   if(names.length !== 2)return null;
   const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
   const competition = competitions.get(text(league)) || text(league);
-  const teams = names.map(name=>teamBadge(name,league)?.id || `name:${text(name)}`);
+  // Resolve ambiguous club names in the same canonical competition context
+  // for both providers, even when one uses a sponsored league name.
+  const teams = names.map(name=>teamBadge(name,competition)?.id || `name:${text(name)}`);
   return JSON.stringify([competition,...teams]);
 }

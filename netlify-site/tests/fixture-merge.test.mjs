@@ -25,6 +25,19 @@ test('known club aliases, vs punctuation, accents, and extra spaces merge withou
     ['NHL: Edmonton Oilers  vs Anaheim Ducks','NHL: Edmonton Oilers vs Anaheim Ducks'],
   ])assert.equal(merge([[event(a)],[event(b)]]).length,1,`${a} / ${b}`);
 });
+test('translated Venezia and Colombian sponsored competitions merge every source and link',()=>{
+  for(const [a,b] of [
+    ['Serie A: Venecia vs Udinese','Serie A: Venezia vs Udinese'],
+    ['Primera A: Boyacá Chicó vs Inter Bogotá','Liga BetPlay: Boyacá Chicó vs Internacional de Bogotá'],
+    ['Primera A: Fortaleza CEIF vs Medellín','Liga BetPlay: Fortaleza CEIF vs Independiente Medellín'],
+  ]){
+    const first=event(a),second=event(b,'17:15:00','second');
+    const merged=merge([[first],[second]]);
+    assert.equal(merged.length,1,`${a} / ${b}`);
+    assert.equal(merged[0].signals.length,2);
+    assert.ok(merged[0].legacyIds.includes(second.id));
+  }
+});
 
 test('a small cross-feed NFL time discrepancy keeps the first schedule and the second link',()=>{
   const first=event('NFL – Baltimore Ravens vs. Jacksonville Jaguars','20:00:00');
