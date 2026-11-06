@@ -1,5 +1,6 @@
 import {createHash, createHmac, timingSafeEqual} from 'node:crypto';
 import {botChannels,channelSlug,botSourceURLs} from './catalog.mjs';
+import {fixtureIdentity} from './fixture-identity.mjs';
 export const hash = value => createHash('sha256').update(value).digest('hex').slice(0,24);
 export const dayOf = date => new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
 const slug = value => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -75,16 +76,33 @@ export function catalogSignals(){
   return withAlternatives(botChannels.map(channel=>({id:hash('catalog:'+channel.slug),name:channel.name,slug:channel.slug,url:botSourceURLs(channel.slug)[0],lang:'Español'})));
 }
 export function merge(feeds) {
-  const events=new Map();
-  for (const event of feeds.flat()) {
-    const existing=events.get(event.id);
-    if (!existing) events.set(event.id,{...event,signals:[...event.signals]});
-    else {
-      existing.legacyIds=[...new Set([...(existing.legacyIds||[]),...(event.legacyIds||[])])];
-      for (const signal of event.signals) if(!existing.signals.some(s=>s.id===signal.id)) existing.signals.push(signal);
+  const byId=new Map(),byFixture=new Map(),groups=[];
+  for (const [feedIndex,feed] of feeds.entries()) {
+    for(const event of feed) {
+      const identity=fixtureIdentity(event),start=Date.parse(event.startsAt);
+      let group=byId.get(event.id);
+      if(!group && identity && Number.isFinite(start)) {
+        const candidates=byFixture.get(identity)||[];
+        const exact=candidates.filter(candidate=>candidate.start===start);
+        // Published schedules occasionally differ by 15 minutes. Allow this
+        // only between feeds, on the same day, with one unambiguous matchup.
+        const nearby=exact.length?exact:candidates.filter(candidate=>!candidate.feeds.has(feedIndex)&&Math.abs(candidate.start-start)<=15*60000&&dayOf(new Date(candidate.start))===dayOf(new Date(start)));
+        if(nearby.length===1)group=nearby[0];
+      }
+      if(!group) {
+        group={event:{...event,signals:[...event.signals]},start,feeds:new Set([feedIndex])};
+        groups.push(group);
+        if(identity){if(!byFixture.has(identity))byFixture.set(identity,[]);byFixture.get(identity).push(group);}
+      } else {
+        const existing=group.event;
+        existing.legacyIds=[...new Set([...(existing.legacyIds||[]),event.id,...(event.legacyIds||[])])].filter(id=>id!==existing.id);
+        for (const signal of event.signals) if(!existing.signals.some(s=>s.id===signal.id))existing.signals.push(signal);
+        group.feeds.add(feedIndex);
+      }
+      byId.set(event.id,group);
     }
   }
-  const merged=[...events.values()],published=merged.flatMap(event=>event.signals);
+  const merged=groups.map(group=>group.event),published=merged.flatMap(event=>event.signals);
   return merged.map(event=>({...event,signals:withPublishedAlternatives(event.signals,published)})).sort((a,b)=>a.startsAt.localeCompare(b.startsAt)||a.title.localeCompare(b.title));
 }
 export function publicAgenda(data) {
