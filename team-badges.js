@@ -104,7 +104,7 @@ export function competitionBadge(event){
     [/eerste divisie/,'Eerste Divisie','eerstedivisie'],[/eredivisie/,'Eredivisie','eredivisie'],
     [/ligue 1/,'Ligue 1','ligue1'],[/serie a/,'Serie A','seriea'],[/liga profesional/,'Liga Profesional Argentina','argentina'],
     [/brasileirao/,'Brasileirão','brasil'],[/liga mx/,'Liga MX','ligamx'],[/primera a/,'Primera A','colombia'],
-  ])if(pattern.test(context))return {label,logo:`/logos/${logo}.${['motorsport','rugby','american-football','volleyball','handball','polo','cycling'].includes(logo)?'svg':'png'}`,individual:/f1|atp|tennis|golf|ufc|boxing|motorsport|polo|cycling/.test(logo)};
+  ])if(pattern.test(context))return {label,logo:`/logos/${logo === 'motorsport' ? 'motogp' : logo}.${['motorsport','rugby','american-football','volleyball','handball','polo','cycling'].includes(logo)?'svg':'png'}`,individual:/f1|atp|tennis|golf|ufc|boxing|motorsport|polo|cycling/.test(logo)};
   return {label:event.league&&event.league!=='Deportes'?event.league:'Deportes',logo:matchTeams(event).length?'/logos/soccer.png':'/logos/sports.svg',individual:false};
 }
 function competitionMarkup(competition){
