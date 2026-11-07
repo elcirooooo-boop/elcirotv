@@ -1,0 +1,5 @@
+config.php
+.env
+.env.*
+*.key
+.elciro-data*/
