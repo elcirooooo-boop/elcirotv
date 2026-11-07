@@ -4,6 +4,7 @@ import {matchSchedule,scheduleText} from './schedule.js';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107e';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
 import {requestJSON} from './api-client.js?v=20261107c';
+import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -15,6 +16,7 @@ let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,p
 const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
+const preparedPlayback=createPreparedPlayback((id,{excluded,refresh,signal})=>api('play?source='+encodeURIComponent(id)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal}));
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
@@ -40,7 +42,7 @@ async function play(signal,signals){
   const active=()=>playerGeneration===generation&&selected===identity;
   player=createLivePlayer({
     video,Hls:window.Hls,
-    resolveSource:(excluded,abortSignal,{refresh})=>api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal:abortSignal}),
+    resolveSource:(excluded,abortSignal,{refresh})=>preparedPlayback.read(identity,{excluded,refresh,signal:abortSignal}),
     onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
     onProgress:()=>{if(active())lastProgress=Date.now();},
     onState:()=>{if(active())void heartbeat().then(refreshViewers);},
@@ -79,7 +81,9 @@ function chooser(event,signals){
     main.querySelector('#videoSection').before(sharing);
     document.title=getShareData().title;
   }
-  main.querySelectorAll('[data-signal]').forEach(b=>b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals));
+  const initial=event?sharedSignal(event,location.search)||signals[0]:signals[0];
+  if(initial)void preparedPlayback.prepare(initial.id);
+  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
 }
 function listing(channels=false){
   main.innerHTML=intro(channels?'Tus canales.':'Tu próximo partido.',channels?'Todas las señales publicadas en la agenda.':'Elige tu partido, selecciona un canal y disfruta.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido o canal" placeholder="${channels?'Buscar canal…':'Equipo, liga o canal…'}"></label>${channels?'':'<select id="league" aria-label="Filtrar por competición"><option value="">Todas las competiciones</option>'+[...new Set(data.events.map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('')+'</select>'}</div><div class="section-heading"><h2>${channels?'Canales':'Partidos de hoy'}</h2><span id="count"></span></div><div id="results"></div>${data.stale?'<p role="status">Mostrando la última agenda disponible de hoy.</p>':''}`;

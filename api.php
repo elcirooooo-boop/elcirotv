@@ -24,11 +24,13 @@ try {
     }
     if($action==='media'){
         try{$permission=verify_media(is_string($_GET['t']??null)?$_GET['t']:'');}catch(Throwable){respond(['error'=>'La sesión venció. Vuelve a abrir la señal.'],403);}
-        $range=$_SERVER['HTTP_RANGE']??'';$r=net_request($permission['url'],$permission['referer'],$range,19000000,15);
+        $range=$_SERVER['HTTP_RANGE']??'';
+        if($range===''&&($startup=startup_manifest($permission['url'],$permission['referer']))){header('Content-Type: application/vnd.apple.mpegurl');echo rewrite_manifest($startup['text'],$startup['base'],$permission['referer'],$permission['expiry']);exit;}
+        $r=net_request($permission['url'],$permission['referer'],$range,19000000,15);
         if(in_array($r['status'],[401,403],true)){$renewed=renew_media($permission,$range);if($renewed){fclose($r['stream']);$r=$renewed;}}
         $type=$r['headers']['content-type']??'application/octet-stream';
         if($r['status']<200||$r['status']>=300||preg_match('/html|javascript|json|svg/i',$type)){fclose($r['stream']);respond(['error'=>'Señal no disponible.'],in_array($r['status'],[401,403],true)?$r['status']:502);}
-        if(preg_match('/mpegurl/i',$type)||preg_match('/\.m3u8$/i',parse_url($r['url'],PHP_URL_PATH)??'')){header('Content-Type: application/vnd.apple.mpegurl');echo rewrite_manifest(read_text($r),$r['url'],$permission['referer'],$permission['expiry']);exit;}
+        if(preg_match('/mpegurl/i',$type)||preg_match('/\.m3u8$/i',parse_url($r['url'],PHP_URL_PATH)??'')){header('Content-Type: application/vnd.apple.mpegurl');$text=read_text($r);remember_startup_manifest($permission['url'],$permission['referer'],$r['url'],$text);echo rewrite_manifest($text,$r['url'],$permission['referer'],$permission['expiry']);exit;}
         http_response_code($r['status']);header('Content-Type: '.$type);header('Cache-Control: private, max-age=5');foreach(['content-range','accept-ranges'] as $name)if(isset($r['headers'][$name]))header($name.': '.$r['headers'][$name]);fpassthru($r['stream']);fclose($r['stream']);exit;
     }
     if($action==='presence'){

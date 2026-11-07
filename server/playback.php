@@ -46,14 +46,28 @@ function resolve_player(string $initial): array {
         }catch(Throwable){}
     }throw new RuntimeException('SOURCE_UNAVAILABLE');
 }
-function probe_playlist(array $resolved): void {
+function remember_startup_manifest(string $requested,string $referer,string $base,string $text): void {
+    if(!str_starts_with(ltrim($text),'#EXTM3U')||strlen($text)>1000000)return;
+    cached_write('startup-'.fingerprint($requested.'|'.$referer),['until'=>time()+3,'base'=>$base,'text'=>$text]);
+    if(random_int(1,16)===1)foreach(glob(storage().'/startup-*.json')?:[] as $file)if(filemtime($file)<time()-30)@unlink($file);
+}
+function startup_manifest(string $requested,string $referer): ?array {
+    $cached=cached_read('startup-'.fingerprint($requested.'|'.$referer));
+    return ($cached['until']??0)>time()&&str_starts_with(ltrim($cached['text']??''),'#EXTM3U')?$cached:null;
+}
+function probe_playlist(array $resolved,bool $checkMedia=true,?callable $fetch=null): void {
+    $fetch??=fn(...$args)=>net_request(...$args);
     $target=$resolved['url'];
-    for($depth=0;$depth<3;$depth++){$r=net_request($target,$resolved['referer'],'',1000000,5);if($r['status']!==200){fclose($r['stream']);throw new RuntimeException('PLAYLIST_HTTP');}$url=$r['url'];$text=read_text($r);$lines=array_values(array_filter(array_map('trim',preg_split('/\r?\n/',$text)),fn($line)=>$line!==''&&!str_starts_with($line,'#')));
+    for($depth=0;$depth<3;$depth++){$r=$fetch($target,$resolved['referer'],'',1000000,5);if($r['status']!==200){fclose($r['stream']);throw new RuntimeException('PLAYLIST_HTTP');}$url=$r['url'];$text=read_text($r);$lines=array_values(array_filter(array_map('trim',preg_split('/\r?\n/',$text)),fn($line)=>$line!==''&&!str_starts_with($line,'#')));
         if(!str_starts_with(ltrim($text),'#EXTM3U')||!$lines)throw new RuntimeException('INVALID_MANIFEST');
+        remember_startup_manifest($target,$resolved['referer'],$url,$text);
+        // On initial selection, hand the validated playlist straight to HLS.
+        // Segment checks are reserved for recovery, avoiding a duplicate video download.
+        if(!$checkMedia)return;
         if(str_contains($text,'#EXT-X-STREAM-INF')){$target=absolute_url($lines[0],$url);continue;}
         $segment=absolute_url($lines[max(0,count($lines)-3)],$url);
         // Range responses may be ignored by a provider; bound this probe too.
-        $media=net_request($segment,$resolved['referer'],'bytes=0-187',19000000,5);
+        $media=$fetch($segment,$resolved['referer'],'bytes=0-187',19000000,5);
         $valid=$media['status']>=200&&$media['status']<300&&!preg_match('/html|javascript|json|svg/i',$media['headers']['content-type']??'')&&fstat($media['stream'])['size']>0;fclose($media['stream']);
         if(!$valid)throw new RuntimeException('SEGMENT_HTTP');return;
     }throw new RuntimeException('PLAYLIST_DEPTH');
@@ -64,7 +78,7 @@ function select_playback(array $signal,array $excluded,bool $refresh): array {
     if(isset($cached['result']['sourceKey']))usort($sources,fn($a,$b)=>(int)($b['id']===$cached['result']['sourceKey'])<=>(int)($a['id']===$cached['result']['sourceKey']));
     $deadline=microtime(true)+24;$tried=0;
     foreach($sources as $source){if(in_array($source['id'],$excluded,true))continue;if(microtime(true)>$deadline||$tried++>=6)break;
-        try{$resolved=resolve_player($source['url']);probe_playlist($resolved);$resolved['sourceKey']=$source['id'];cached_write($name,['until'=>time()+45,'result'=>$resolved]);return $resolved;}catch(Throwable){}
+        try{$resolved=resolve_player($source['url']);probe_playlist($resolved,$refresh);$resolved['sourceKey']=$source['id'];cached_write($name,['until'=>time()+120,'result'=>$resolved]);return $resolved;}catch(Throwable){}
     }
     throw new RuntimeException('CHANNEL_UNAVAILABLE');
 }
