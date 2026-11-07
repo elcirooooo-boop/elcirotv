@@ -19,7 +19,7 @@ export async function requestJSON(path,options={}, {php=false,fetcher=globalThis
       if(readOnly&&attempt===0)continue;
       throw Error('No se pudieron cargar los datos. Comprueba tu conexión y pulsa Actualizar agenda.');
     }
-    if(!response.ok)throw Error(typeof value.error==='string'?value.error:'El servidor no está disponible. Intenta de nuevo.');
+    if(!response.ok){const error=Error(typeof value.error==='string'?value.error:'El servidor no está disponible. Intenta de nuevo.');error.status=response.status;if(typeof value.code==='string')error.code=value.code;throw error;}
     return value;
   }
 }

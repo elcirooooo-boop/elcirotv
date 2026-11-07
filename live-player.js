@@ -1,10 +1,17 @@
 // Keep transient HLS errors inside the existing playback session. Re-resolving
 // the provider creates a new live timeline and is reserved for sustained loss.
-export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},now=Date.now,timers=globalThis}){
+export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},onUnavailable=()=>{},now=Date.now,timers=globalThis}){
   let engine,disposed=false,connecting=false,replacing=true,starting=true,wanted=true,pending,request,startupTimer,playAttempt=0;
   let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
+  let delivered=false,unavailable=false,waitingSince=0;
+  const hasVideo=()=>delivered||(delivered=video.readyState>=3&&!video.paused);
   const status=text=>{if(!disposed)onStatus(text);};
+  function fail(){
+    if(disposed||unavailable)return;unavailable=true;wanted=false;starting=false;
+    timers.clearTimeout(startupTimer);timers.clearTimeout(pending);pending=undefined;engine?.stopLoad();
+    status('Esta señal no está disponible. Prueba otra opción.');onUnavailable();
+  }
   const listen=(name,fn)=>{video.addEventListener(name,fn);listeners.push([name,fn]);};
   const bufferedAhead=()=>{
     const ranges=video.buffered,time=video.currentTime;
@@ -22,7 +29,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   };
   function reconnect(){
     if(disposed||connecting||pending||!wanted)return;
-    if(reconnects>=5){wanted=false;engine?.stopLoad();status('La señal está interrumpida. Puedes reintentar más tarde.');return;}
+    if(reconnects>=(hasVideo()?5:1)){fail();return;}
     timers.clearTimeout(startupTimer);starting=false;
     status('Recuperando la señal…');stableSince=0;
     const delay=Math.min(1000*2**reconnects,8000);
@@ -37,7 +44,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   async function connect(){
     if(disposed||connecting)return;connecting=true;playAttempt++;timers.clearTimeout(startupTimer);
     request=new AbortController();
-    const timeout=timers.setTimeout(()=>request?.abort(),30000);
+    const timeout=timers.setTimeout(()=>request?.abort(),hasVideo()?20000:15000);
     status(sourceKey?'Recuperando la señal…':'Conectando…');
     try{
       // Retry the same provider first. Only sustained repeated failure moves to
@@ -52,6 +59,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
       engine?.destroy();engine=undefined;
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
+      waitingSince=now();
       if(Hls?.isSupported()){
         const instance=new Hls({progressive:true,lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
         let sourceLoaded=false,parsed=false;
@@ -64,7 +72,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
         instance.on(Hls.Events.ERROR,(_,error)=>{
           if(disposed||engine!==instance||!error.fatal||!wanted)return;
           const code=error.response?.code;
-          if(error.type===Hls.ErrorTypes.NETWORK_ERROR&&instance.levels.length&&networkRetries<2&&code!==401&&code!==403){resumeDownload();return;}
+          if(error.type===Hls.ErrorTypes.NETWORK_ERROR&&hasVideo()&&instance.levels.length&&networkRetries<2&&![401,403,404,410].includes(code)){resumeDownload();return;}
           if(error.type===Hls.ErrorTypes.MEDIA_ERROR&&mediaRetries<1){mediaRetries++;lastProgress=now();replacing=true;instance.recoverMediaError();return;}
           reconnect();
         });
@@ -83,14 +91,14 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
         video.dataset.engine='native';video.src=source.url;replacing=false;starting=false;requestPlay();
       }else{wanted=false;status('Este navegador no admite la reproducción.');}
     }catch(error){
-      if(!disposed){status('No se pudo conectar con la señal. Reintentando…');connecting=false;reconnect();}
+      if(!disposed){if(error.code==='CHANNEL_UNAVAILABLE'||[404,410].includes(error.status)){fail();return;}status('No se pudo conectar con la señal. Reintentando…');connecting=false;reconnect();}
     }finally{timers.clearTimeout(timeout);connecting=false;}
   }
   listen('timeupdate',()=>{
     if(disposed||video.paused||video.currentTime===position)return;
     const advancing=position>=0&&video.currentTime>position&&video.currentTime-position<5;
     position=video.currentTime;lastProgress=now();onProgress();
-    if(advancing&&pending){timers.clearTimeout(pending);pending=undefined;status('Reproduciendo');}
+    if(advancing){delivered=true;if(pending){timers.clearTimeout(pending);pending=undefined;status('Reproduciendo');}}
     if(!advancing)stableSince=0;
     else if(!stableSince)stableSince=now();
     if(stableSince&&now()-stableSince>30000){reconnects=0;networkRetries=0;mediaRetries=0;excluded.clear();}
@@ -104,6 +112,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   listen('ended',()=>{if(!disposed){if(sourceKey&&!persistent)excluded.add(sourceKey);reconnect();}});
   const watchdog=timers.setInterval(()=>{
     if(disposed||!wanted||connecting||pending)return;
+    if(!hasVideo()&&waitingSince&&now()-waitingSince>=10000){reconnect();return;}
     const stalled=now()-lastProgress;
     // A missing sliver between already downloaded fragments needs a small
     // forward seek, not a new session or another download of the same media.

@@ -48,5 +48,7 @@ try {
     }
 }catch(Throwable $error){
     error_log('El Ciro PHP: '.get_class($error).' '.$error->getMessage());
-    respond(['error'=>$action==='agenda'?'No se pudo actualizar la agenda. Intenta de nuevo.':'La señal no está disponible. Prueba otra opción.'],503);
+    $response=['error'=>$action==='agenda'?'No se pudo actualizar la agenda. Intenta de nuevo.':'La señal no está disponible. Prueba otra opción.'];
+    if($action==='play'&&$error->getMessage()==='CHANNEL_UNAVAILABLE')$response['code']='CHANNEL_UNAVAILABLE';
+    respond($response,503);
 }

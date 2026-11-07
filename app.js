@@ -1,9 +1,9 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
-import {createLivePlayer} from './live-player.js?v=20261107f';
+import {createLivePlayer} from './live-player.js?v=20261107h';
 import {matchSchedule,scheduleText} from './schedule.js';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107e';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
-import {requestJSON} from './api-client.js?v=20261107c';
+import {requestJSON} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
@@ -32,7 +32,8 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver canal ↗</span></button>`).join('');}
-async function play(signal,signals){
+async function play(signal,signals,{tried=new Set()}={}){
+  tried.add(signal.id);
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
   document.querySelector('#videoSection').hidden=false;
@@ -46,6 +47,7 @@ async function play(signal,signals){
     onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
     onProgress:()=>{if(active())lastProgress=Date.now();},
     onState:()=>{if(active())void heartbeat().then(refreshViewers);},
+    onUnavailable:()=>{if(!active())return;const next=signals.find(s=>!tried.has(s.id));if(next)void play(next,signals,{tried});else status.textContent='No hay señales disponibles para este partido en este momento. Puedes reintentar más tarde.';},
   });
   document.querySelector('#retry').onclick=()=>play(signal,signals);
   document.querySelector('#fullscreen').onclick=()=>{if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};

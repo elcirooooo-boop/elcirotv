@@ -22,14 +22,18 @@ function published_playback_url(string $html): ?string {
     foreach($pairs as $pair){if(count($pair)!==2||!is_string($pair[1]))return null;$decoded=base64_decode($pair[1],true);if($decoded===false)return null;$code=(int)preg_replace('/\D/','',$decoded)-$sum;if($code<32||$code>126)return null;$url.=chr($code);}
     return $url?:null;
 }
+function supported_player_host(string $host): bool {
+    $host=preg_replace('/^www\./','',strtolower($host));
+    return in_array($host,['rojadirectatvmas.net','rojadirectatvplay.org','tarjetadigital.club','la18hd.su','tvf90.com','rojadirectatv.company','tarjetarojatv.cam','rodrixtv.site','streamxhd.sbs','zonalivetv.biz','dog.tilinhd.lol','sportsoonline.click'],true)||preg_match('/^[a-f0-9]{32}\.dynmetal\.net$/D',$host)===1;
+}
 function resolve_player(string $initial): array {
-    $players=['rojadirectatvmas.net','rojadirectatvplay.org','tarjetadigital.club','la18hd.su','tvf90.com','rojadirectatv.company','tarjetarojatv.cam','rodrixtv.site','streamxhd.sbs','zonalivetv.biz','dog.tilinhd.lol'];$pending=[[$initial,'https://tarjetadigital.club/',0]];$seen=[];$deadline=microtime(true)+18;
+    $pending=[[$initial,'https://tarjetadigital.club/',0]];$seen=[];$deadline=microtime(true)+18;
     $pageKey='native-player-page-'.fingerprint($initial);$warm=cached_read($pageKey);
     if(($warm['until']??0)>time()&&isset($warm['page'],$warm['referer']))array_unshift($pending,[$warm['page'],$warm['referer'],0]);
     while($pending&&count($seen)<8&&microtime(true)<$deadline){[$value,$referer,$depth]=array_shift($pending);$p=safe_url($value);
         if(preg_match('/\.m3u8$/i',$p['path']??''))return ['url'=>$value,'referer'=>$referer];
-        if(!in_array(preg_replace('/^www\./','',$p['host']),$players,true)||isset($seen[$value])||$depth>6)continue;$seen[$value]=true;
-        try{$r=net_request($value,$referer,'',1500000,5);$url=$r['url'];if(!in_array(preg_replace('/^www\./','',parse_url($url,PHP_URL_HOST)),$players,true)||$r['status']!==200){fclose($r['stream']);continue;}
+        if(!supported_player_host($p['host'])||isset($seen[$value])||$depth>6)continue;$seen[$value]=true;
+        try{$r=net_request($value,$referer,'',1500000,5);$url=$r['url'];if(!supported_player_host(parse_url($url,PHP_URL_HOST))||$r['status']!==200){fclose($r['stream']);continue;}
             $html=str_replace(['\\/','&amp;'],['/','&'],read_text($r));
             $config=published_player_config($html);
             if($config&&$p['host']==='dog.tilinhd.lol'&&str_contains($html,'stream_tv=')){
