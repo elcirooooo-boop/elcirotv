@@ -53,7 +53,7 @@ function team_identity(string $name,string $league): string {
 }
 function fixture_identity(array $e): ?string {
     $title=preg_replace('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/iu','',$e['title']);$title=preg_replace('/^Mexico City Game\s*[-–—:]\s*/iu','',$title);$names=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$title);
-    if(count($names)!==2){$context=folded($e['league'].' '.$title);if(preg_match('/\bmoto\s*gp\b/',$context))return 'session:motogp:'.trim(preg_replace('/\b(motogp|moto gp|gp|gran premio|deportes)\b/','',$context));return null;}
+    if(count($names)!==2){$context=folded($e['league'].' '.$title);if(preg_match('/\bgolf\b/',$context))return 'session:golf:'.folded($title);if(preg_match('/\bmoto\s*gp\b/',$context))return 'session:motogp:'.trim(preg_replace('/\b(motogp|moto gp|gp|gran premio|deportes)\b/','',$context));return null;}
     $league=$e['league'];if(preg_match('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/iu',$e['title'],$m))$league=$m[1];$league=folded($league);
     $league=match($league){'nba usa'=>'nba','liga 1 argentina','liga profesional','liga profesional argentina'=>'liga profesional argentina','liga 1 colombia','primera a','liga betplay','liga betplay dimayor'=>'colombia primera a','laliga ea sports'=>'laliga','laliga smartbank','laliga hypermotion'=>'laliga 2','bundesliga 2'=>'2 bundesliga','liga de ecuador','serie a italia'=>'serie a','ligue 1 francia'=>'ligue 1','mls usa'=>'mls','liga de portugal'=>'primeira liga','liga turquia'=>'super lig','premiership escocia'=>'premiership','liga 1 chile','liga de costa rica'=>'primera division','liga 1 peru'=>'liga 1','copa do brasil'=>'copa de brasil',default=>$league};
     $teams=[team_identity(trim($names[0]),$league),team_identity(trim($names[1]),$league)];if(in_array($league,['nba','wnba','nhl','nfl','mlb'],true))sort($teams);
@@ -83,7 +83,7 @@ function normalize_public_programme(string $html,?int $now=null): array {
 function merge_agendas(array $feeds): array {
     $groups=[];$ids=[];
     foreach($feeds as $feedIndex=>$feed)foreach($feed as $e){$identity=fixture_identity($e);$start=strtotime($e['startsAt']);$chosen=$ids[$e['id']]??null;
-        if($chosen===null&&$identity!==null){$exact=[];$near=[];foreach($groups as $i=>$g)if($g['identity']===$identity){if($g['start']===$start)$exact[]=$i;elseif(!in_array($feedIndex,$g['feeds'],true)&&abs($g['start']-$start)<=900&&today($g['start'])===today($start))$near[]=$i;}$options=$exact?:$near;if(count($options)===1)$chosen=$options[0];}
+        if($chosen===null&&$identity!==null){$exact=[];$near=[];foreach($groups as $i=>$g)if($g['identity']===$identity){if($g['start']===$start||str_starts_with($identity,'session:golf:')&&today($g['start'])===today($start))$exact[]=$i;elseif(!in_array($feedIndex,$g['feeds'],true)&&abs($g['start']-$start)<=900&&today($g['start'])===today($start))$near[]=$i;}$options=$exact?:$near;if(count($options)===1)$chosen=$options[0];}
         if($chosen===null){$chosen=count($groups);$groups[]=['event'=>$e,'identity'=>$identity,'start'=>$start,'feeds'=>[$feedIndex]];}
         else{$existing=&$groups[$chosen]['event'];$existing['legacyIds']=array_values(array_diff(array_unique(array_merge($existing['legacyIds']??[],[$e['id']],$e['legacyIds']??[])),[$existing['id']]));foreach($e['signals'] as $signal)if(!in_array($signal['id'],array_column($existing['signals'],'id'),true))$existing['signals'][]=$signal;$groups[$chosen]['feeds'][]=$feedIndex;unset($existing);}$ids[$e['id']]=$chosen;
     }
@@ -104,15 +104,15 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-single');if(($old['version']??0)===4&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $old=cached_read('agenda-classic');if(($old['version']??0)===5&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/agenda.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_LOADING');}
     try{$feeds=[];
-        $feeds[]=agenda_feed('programme',function(){$r=net_request('https://www.rojadirectatv.company/programacion.php','','',1500000,7);if($r['status']!==200){fclose($r['stream']);return [];}return normalize_public_programme(read_text($r));});
+        $feeds[]=agenda_feed('classic',fn()=>normalize_agenda(fetch_json('https://api.wqxag.com/diaries.json')));
         $feeds=array_values(array_filter($feeds));
         if(!$feeds){if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_UNAVAILABLE');}
-        $previous=$old??cached_read('agenda');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);
-        $data=['version'=>4,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write('agenda-single',$data);return $data;
+        $previous=$old??cached_read('agenda-single')??cached_read('agenda');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);
+        $data=['version'=>5,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write('agenda-classic',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
