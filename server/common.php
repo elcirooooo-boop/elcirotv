@@ -32,8 +32,9 @@ function cached_write(string $name,array $data): void {
     finally {if(is_file($tmp))unlink($tmp);}
 }
 function signing_key(): string {
+    static $memo;if($memo!==null)return $memo;
     $handle=fopen(storage().'/signing.key','c+');if(!$handle)throw new RuntimeException('KEY_UNAVAILABLE');
-    try {flock($handle,LOCK_EX);$key=stream_get_contents($handle);if(strlen($key)<64){$key=bin2hex(random_bytes(32));rewind($handle);ftruncate($handle,0);fwrite($handle,$key);fflush($handle);chmod(storage().'/signing.key',0600);}return $key;}
+    try {flock($handle,LOCK_EX);$key=stream_get_contents($handle);if(strlen($key)<64){$key=bin2hex(random_bytes(32));rewind($handle);ftruncate($handle,0);fwrite($handle,$key);fflush($handle);chmod(storage().'/signing.key',0600);}return $memo=$key;}
     finally {flock($handle,LOCK_UN);fclose($handle);}
 }
 function b64url(string $s): string {return rtrim(strtr(base64_encode($s),'+/','-_'),'=');}

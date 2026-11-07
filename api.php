@@ -5,6 +5,7 @@ require __DIR__.'/server/common.php';
 require __DIR__.'/server/network.php';
 require __DIR__.'/server/agenda.php';
 require __DIR__.'/server/playback.php';
+require __DIR__.'/server/media-cache.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
@@ -26,7 +27,7 @@ try {
         try{$permission=verify_media(is_string($_GET['t']??null)?$_GET['t']:'');}catch(Throwable){respond(['error'=>'La sesión venció. Vuelve a abrir la señal.'],403);}
         $range=$_SERVER['HTTP_RANGE']??'';
         if($range===''&&($startup=startup_manifest($permission['url'],$permission['referer']))){header('Content-Type: application/vnd.apple.mpegurl');echo rewrite_manifest($startup['text'],$startup['base'],$permission['referer'],$permission['expiry']);exit;}
-        $r=net_request($permission['url'],$permission['referer'],$range,19000000,15);
+        $r=shared_media_response($permission['url'],$permission['referer'],$range);
         if(in_array($r['status'],[401,403],true)){$renewed=renew_media($permission,$range);if($renewed){fclose($r['stream']);$r=$renewed;}}
         $type=$r['headers']['content-type']??'application/octet-stream';
         if($r['status']<200||$r['status']>=300||preg_match('/html|javascript|json|svg/i',$type)){fclose($r['stream']);respond(['error'=>'Señal no disponible.'],in_array($r['status'],[401,403],true)?$r['status']:502);}
@@ -43,10 +44,12 @@ try {
         file_put_contents($path,json_encode(['match'=>$match,'playing'=>($body['playing']??false)===true,'at'=>time()]),LOCK_EX);respond(['ok'=>true]);
     }
     if($action==='viewers'){
+        $cached=cached_read('viewer-counts');if(($cached['until']??0)>time())respond(['counts'=>(object)$cached['counts']]);
         $counts=[];foreach(glob(storage().'/viewers/*.json')?:[] as $path){$r=json_decode(file_get_contents($path),true);if(!$r||time()-($r['at']??0)>=75){@unlink($path);continue;}if(($r['playing']??false)===true&&preg_match('/^[a-f0-9]{24}$/D',$r['match']??''))$counts[$r['match']]=($counts[$r['match']]??0)+1;}
-        respond(['counts'=>(object)$counts]);
+        cached_write('viewer-counts',['until'=>time()+5,'counts'=>$counts]);respond(['counts'=>(object)$counts]);
     }
 }catch(Throwable $error){
+    if($error->getMessage()==='MEDIA_BUSY'){header('Retry-After: 1');respond(['error'=>'La señal se está preparando. Reintenta.'],503);}
     error_log('El Ciro PHP: '.get_class($error).' '.$error->getMessage());
     $response=['error'=>$action==='agenda'?'No se pudo actualizar la agenda. Intenta de nuevo.':'La señal no está disponible. Prueba otra opción.'];
     if($action==='play'&&$error->getMessage()==='CHANNEL_UNAVAILABLE')$response['code']='CHANNEL_UNAVAILABLE';
