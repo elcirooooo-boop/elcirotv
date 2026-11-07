@@ -1,8 +1,9 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {createLivePlayer} from './live-player.js';
 import {matchSchedule,scheduleText} from './schedule.js';
-import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107b';
+import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107c';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
+import {requestJSON} from './api-client.js?v=20261107c';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -11,7 +12,8 @@ let playerGeneration=0,player;
 let updateMatchShare=()=>{};
 let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
-async function api(path,options){const r=await fetch('/api/'+path,options);const value=await r.json();if(!r.ok)throw Error(value.error||'No disponible.');return value;}
+const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
+async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
