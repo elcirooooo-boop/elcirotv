@@ -96,15 +96,23 @@ function agenda_feed(string $name,callable $fetch): array {
     try{$events=$fetch();if($events){cached_write('feed-'.$name,['day'=>today(),'loaded'=>time(),'events'=>$events]);return $events;}}catch(Throwable){}
     $old=cached_read('feed-'.$name);return ($old['day']??'')===today()&&time()-($old['loaded']??0)<1800?($old['events']??[]):[];
 }
+function retain_agenda_links(array $events,array $previous): array {
+    foreach($previous as $old){$identity=fixture_identity($old);$matches=[];$exact=[];
+        foreach($events as $i=>$event)if(today(strtotime($old['startsAt']))===today(strtotime($event['startsAt']))&&($identity!==null&&fixture_identity($event)===$identity||folded($old['title'])===folded($event['title']))){$matches[]=$i;if($old['startsAt']===$event['startsAt'])$exact[]=$i;}
+        $candidates=$exact?:$matches;if(count($candidates)!==1)continue;$i=$candidates[0];
+        $events[$i]['legacyIds']=array_values(array_diff(array_unique(array_merge($events[$i]['legacyIds']??[],[$old['id']],$old['legacyIds']??[])),[$events[$i]['id']]));
+    }return $events;
+}
 function agenda(): array {
-    $old=cached_read('agenda');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $old=cached_read('agenda-single');if(($old['version']??0)===4&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/agenda.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_LOADING');}
-    try{$feeds=[];foreach(['https://api.wqxag.com/diaries.json','https://tarjetadigital.club/api/agenda'] as $i=>$url)$feeds[]=agenda_feed('json-'.$i,fn()=>normalize_agenda(fetch_json($url)));
+    try{$feeds=[];
         $feeds[]=agenda_feed('programme',function(){$r=net_request('https://www.rojadirectatv.company/programacion.php','','',1500000,7);if($r['status']!==200){fclose($r['stream']);return [];}return normalize_public_programme(read_text($r));});
         $feeds=array_values(array_filter($feeds));
         if(!$feeds){if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_UNAVAILABLE');}
-        $data=['version'=>3,'day'=>today(),'events'=>merge_agendas($feeds),'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write('agenda',$data);return $data;
+        $previous=$old??cached_read('agenda');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);
+        $data=['version'=>4,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write('agenda-single',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {

@@ -1,4 +1,6 @@
-import catalogue from './team-badges-data.js?v=20261107';
+import baseCatalogue from './team-badges-data.js?v=20261107';
+import extraCatalogue from './team-badges-extra.js?v=20261107e';
+const catalogue=[...baseCatalogue,...extraCatalogue];
 import countryFlags from './country-flags-data.js';
 
 const escape = value => String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -28,21 +30,61 @@ const aliases = {
   'soccer:men:17530':['Venecia'],
   'soccer:men:132':['Bayern München','Bayern Múnich'],
   'soccer:men:2950':['Mainz 05'],
-  'soccer:men:269':['Nürnberg'],
+  'soccer:men:269':['Nürnberg','Núremberg'],
   'soccer:men:3812':['Darmstadt 98'],
   'soccer:men:104':['Roma'],
   'soccer:men:129':['Hertha BSC'],
-  'soccer:men:90':['Deportivo La Coruña'],
+  'soccer:men:90':['Deportivo La Coruña','Deportivo de A Coruña'],
   'soccer:men:271':['Den Bosch'],
   'soccer:men:18278':['Utrecht II'],
-  'soccer:men:131858':['Celta de Vigo II'],
-  'soccer:men:132335':['Amed SK'],
+  'soccer:men:131858':['Celta de Vigo II','Celta de Vigo B'],
+  'soccer:men:132335':['Amed SK','Amedspor'],
   'soccer:men:19685':['Estudiantes Río Cuarto'],
   'soccer:men:7632':['Atlético Mineiro'],
   'soccer:men:9762':['Rionegro Águilas'],
   'soccer:men:11124':['Guayaquil City'],
   'soccer:men:22534':['Juan Pablo II College'],
-  'soccer:men:221':['Atlético Morelia'],
+  'soccer:men:221':['Atlético Morelia','Atl. Morelia'],
+  'soccer:men:7884':['Kiel'],
+  'soccer:men:381':['Norwich'],
+  'soccer:men:357':['Leeds Utd'],
+  'soccer:men:367':['Tottenham'],
+  'soccer:men:12597':['Burgos CF'],
+  'soccer:men:87':['R. Racing Club'],
+  'soccer:men:125':['Eintracht Fráncfort'],
+  'soccer:men:3841':['Augsburgo'],
+  'soccer:men:21607':['Academico Viseu'],
+  'soccer:men:143':['Sittard'],
+  'soccer:men:7914':['Başakşehir'],
+  'soccer:men:107':['Bolonia'],
+  'soccer:men:5404':['AD Ceuta'],
+  'soccer:men:2726':['Den Haag'],
+  'soccer:men:21314':['AD Tarma'],
+  'soccer:men:6851':['Paris'],
+  'soccer:men:8':['Estudiantes L.P.'],
+  'soccer:men:138':['Wolfsburgo'],
+  'soccer:men:3706':['G.A. Eagles'],
+  'soccer:men:3':['Argentinos Jrs.'],
+  'soccer:men:8110':['Dep. Concepción'],
+  'soccer:men:182':['Chicago Fire'],
+  'soccer:men:193':['DC United'],
+  'soccer:men:17606':['New York City'],
+  'soccer:men:20232':['Inter Miami'],
+  'soccer:men:18418':['Atlanta Utd'],
+  'soccer:men:12011':['Orlando City'],
+  'soccer:men:131702':['Leones del Norte'],
+  'soccer:men:6077':['Houston Dynamo'],
+  'soccer:men:21812':['St. Louis City'],
+  'soccer:men:17362':['Minnesota United'],
+  'soccer:men:187':['Los Angeles Galaxy'],
+  'soccer:men:9726':['Seattle Sounders'],
+  'soccer:men:18966':['Los Angeles FC'],
+  'soccer:men:20705':['Sporting FC'],
+  'soccer:men:21533':['Atl. La Paz'],
+  'soccer:men:227':['Club América'],
+  'soccer:men:261':['Dundee FC'],
+  'soccer:men:314':['Lincoln'],
+  'soccer:men:190':['New York Red Bulls'],
 };
 const index = new Map();
 const candidates = new Map();
@@ -78,7 +120,10 @@ export function teamBadge(name, league='') {
   if(!sport)return null;
   const normalized = key(String(name).replace(/^#\d+\s*/, '')).replace(/\b(?:femenil|femenino|femenina|women|womens)\b/g,'').replace(/\s+/g,' ').trim();
   const lookup=`${sport}:${gender}:${normalized}`;
-  const leagues=[[/liga profesional|argentina/,'arg.1'],[/brasileir|brasil/,'bra.1'],[/primera a|colombia/,'col.1'],[/liga mx/,'mex.1'],[/laliga|liga espan/,'esp.1'],[/premier league/,'eng.1'],[/serie a/,'ita.1'],[/bundesliga/,'ger.1']];
+  const strictLeague=[[/\bwnba\b/,'wnba'],[/\bnba\b/,'nba'],[/\bnfl\b/,'nfl'],[/\bnhl\b/,'nhl'],[/\bmlb\b/,'mlb'],[/liga endesa|\bacb\b/,'acb']].find(([pattern])=>pattern.test(competition))?.[1];
+  if(strictLeague){const matches=[...(candidates.get(lookup)||[])].filter(t=>t.leagues?.includes(strictLeague));return matches.length===1?matches[0]:null;}
+  const leagues=[[/liga profesional|argentina/,'arg.1'],[/brasileir|brasil/,'bra.1'],[/primera a|colombia/,'col.1'],[/liga mx/,'mex.1'],[/laliga|liga espan/,'esp.1'],[/premier league/,'eng.1'],[/serie a/,'ita.1'],[/bundesliga/,'ger.1'],[/portugal|primeira liga/,'por.1'],[/ecuador/,'ecu.1'],[/paraguay/,'par.1'],[/costa rica/,'crc.1'],[/mls/,'usa.1']];
+  if(normalized==='san carlos'&&/costa rica/.test(competition))return [...(candidates.get(lookup)||[])].find(t=>t.id==='soccer:men:859')||null;
   const leagueCode=leagues.find(([pattern])=>pattern.test(competition))?.[1];
   if(leagueCode){const matches=[...(candidates.get(lookup)||[])].filter(t=>t.leagues?.includes(leagueCode));if(matches.length===1)return matches[0];}
   return index.get(lookup) || null;
@@ -127,7 +172,7 @@ export function teamBadges(event) {
   const badge = name => {
     const team = teamBadge(name,league);
     const initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toLocaleUpperCase();
-    const logo = team && /^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo) ? team.logo : competition.logo;
+    const logo = team && (/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo)||/^\/logos\/teams\/[a-z0-9-]+\.png$/.test(team.logo)) ? team.logo : competition.logo;
     return `<span class="team-badge" title="${escape(team?name:competition.label)}">${logo?`<img data-team-badge data-fallback="${escape(competition.logo)}" src="${escape(logo)}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="team-initials"${logo?' hidden':''}>${escape(initials)}</span></span>`;
   };
   return `<span class="match-badges" aria-hidden="true">${badge(names[0])}<span class="badge-versus">vs</span>${badge(names[1])}</span>`;

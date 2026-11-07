@@ -1,7 +1,7 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {createLivePlayer} from './live-player.js?v=20261107d';
 import {matchSchedule,scheduleText} from './schedule.js';
-import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107c';
+import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107e';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
 import {requestJSON} from './api-client.js?v=20261107c';
 document.addEventListener('error',handleBadgeError,true);
