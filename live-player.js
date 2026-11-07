@@ -1,6 +1,6 @@
 // Keep transient HLS errors inside the existing playback session. Re-resolving
 // the provider creates a new live timeline and is reserved for sustained loss.
-export function createLivePlayer({video,Hls,resolveSource,onEmbed=()=>{},onStatus=()=>{},onProgress=()=>{},onState=()=>{},now=Date.now,timers=globalThis}){
+export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},now=Date.now,timers=globalThis}){
   let engine,disposed=false,connecting=false,replacing=true,starting=true,wanted=true,pending,request,startupTimer,playAttempt=0;
   let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
@@ -46,8 +46,7 @@ export function createLivePlayer({video,Hls,resolveSource,onEmbed=()=>{},onStatu
       const source=await resolveSource([...excluded],request.signal,{refresh:reconnects>0});
       if(disposed)return;
       if(source.transport==='embed'){
-        wanted=false;starting=false;replacing=false;engine?.destroy();engine=undefined;
-        video.removeAttribute('src');video.load();onEmbed(source.url);status('Reproductor de la señal.');return;
+        wanted=false;starting=false;replacing=false;status('Esta señal no ofrece vídeo compatible. Prueba otra opción.');return;
       }
       sourceKey=source.sourceKey||'';persistent=source.transport==='relay';replacing=true;starting=true;
       engine?.destroy();engine=undefined;

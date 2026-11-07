@@ -1,5 +1,5 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
-import {createLivePlayer} from './live-player.js?v=20261107d';
+import {createLivePlayer} from './live-player.js?v=20261107f';
 import {matchSchedule,scheduleText} from './schedule.js';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261107e';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
@@ -8,7 +8,7 @@ document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,player,embeddedPlayer;
+let playerGeneration=0,player;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
@@ -24,7 +24,7 @@ function heartbeat(){
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){playerGeneration++;player?.destroy();player=null;embeddedPlayer?.remove();embeddedPlayer=null;lastProgress=0;if(video){video.hidden=false;video.style.removeProperty('display');video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
+function stop(){playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
@@ -40,14 +40,13 @@ async function play(signal,signals){
   const active=()=>playerGeneration===generation&&selected===identity;
   player=createLivePlayer({
     video,Hls:window.Hls,
-    onEmbed:url=>{if(!active())return;const target=new URL(url);if(target.protocol!=='https:'||target.hostname!=='rodrixtv.site'||!/^\/tv\/canal\d+\.html$/.test(target.pathname))throw Error('Reproductor no válido.');embeddedPlayer=document.createElement('iframe');embeddedPlayer.src=target.href;embeddedPlayer.title=signal.name;embeddedPlayer.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');embeddedPlayer.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');embeddedPlayer.allowFullscreen=true;embeddedPlayer.style.cssText='width:100%;height:100%;border:0;position:absolute;inset:0';video.hidden=true;video.style.display='none';video.parentElement.style.position='relative';video.parentElement.append(embeddedPlayer);},
     resolveSource:(excluded,abortSignal,{refresh})=>api('play?source='+encodeURIComponent(identity)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal:abortSignal}),
     onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
     onProgress:()=>{if(active())lastProgress=Date.now();},
     onState:()=>{if(active())void heartbeat().then(refreshViewers);},
   });
   document.querySelector('#retry').onclick=()=>play(signal,signals);
-  document.querySelector('#fullscreen').onclick=()=>{if(embeddedPlayer?.requestFullscreen)void embeddedPlayer.requestFullscreen();else if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};
+  document.querySelector('#fullscreen').onclick=()=>{if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};
   await player.start();
   if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
 }

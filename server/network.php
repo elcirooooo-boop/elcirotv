@@ -2,7 +2,7 @@
 declare(strict_types=1);
 function safe_url(string $url): array {
     $p=parse_url($url);$host=strtolower($p['host']??'');
-    if(!in_array($p['scheme']??'',['http','https'],true)||isset($p['user'])||isset($p['pass'])||!str_contains($host,'.')||!preg_match('/^[a-z0-9.-]+$/D',$host)||filter_var($host,FILTER_VALIDATE_IP)||preg_match('/(^|\.)(localhost|local|internal)$/',$host)||isset($p['port'])&&!in_array($p['port'],[80,443],true))throw new RuntimeException('INVALID_URL');
+    if(!in_array($p['scheme']??'',['http','https'],true)||isset($p['user'])||isset($p['pass'])||!str_contains($host,'.')||!preg_match('/^[a-z0-9.-]+$/D',$host)||filter_var($host,FILTER_VALIDATE_IP)||preg_match('/(^|\.)(localhost|local|internal)$/',$host)||isset($p['port'])&&(!in_array($p['port'],[80,443,8443],true)||$p['port']===8443&&$p['scheme']!=='https'))throw new RuntimeException('INVALID_URL');
     return $p;
 }
 function absolute_url(string $relative,string $base): string {

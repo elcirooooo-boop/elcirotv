@@ -20,7 +20,6 @@ try {
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
         $excluded=array_slice(array_values(array_filter(explode(',',is_string($_GET['exclude']??null)?$_GET['exclude']:''),fn($s)=>preg_match('/^[a-f0-9]{24}$/D',$s))),0,8);
         $resolved=select_playback(alternatives([$signal])[0],$excluded,($_GET['refresh']??'')==='1');
-        if(($resolved['transport']??'')==='embed')respond(['url'=>$resolved['url'],'name'=>$signal['name'],'sourceKey'=>$resolved['sourceKey'],'transport'=>'embed']);
         respond(['url'=>'/api/media?t='.rawurlencode(grant_media($resolved['url'],$resolved['referer'],time()+21600)),'name'=>$signal['name'],'sourceKey'=>$resolved['sourceKey'],'transport'=>'php']);
     }
     if($action==='media'){
