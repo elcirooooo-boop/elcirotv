@@ -40,6 +40,7 @@ async function play(signal,signals,{tried=new Set()}={}){
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const status=document.querySelector('#signalStatus');
+  const active=()=>playerGeneration===generation&&selected===identity;
   if(phpAPI){
     status.textContent='Cargando reproductor del proveedor…';
     document.querySelector('#providerOpen').hidden=true;document.querySelector('#providerNext').hidden=true;
@@ -56,7 +57,6 @@ async function play(signal,signals,{tried=new Set()}={}){
     return;
   }
   video=document.querySelector('video');
-  const active=()=>playerGeneration===generation&&selected===identity;
   player=createLivePlayer({
     video,Hls:window.Hls,
     resolveSource:(excluded,abortSignal,{refresh})=>preparedPlayback.read(identity,{excluded,refresh,signal:abortSignal}),
