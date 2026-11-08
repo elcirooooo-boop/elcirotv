@@ -27,9 +27,9 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   frame.className='external-player';
   container.replaceChildren(frame);
   const open=()=>{if(disposed)return;const url=new URL(urls[index]);
-    // StreamCenter's published embed requires a standard cross-origin iframe.
+    // These published embeds require a standard cross-origin iframe.
     // Keep browser same-origin isolation and never change CSP or frame policies.
-    if(url.hostname==='streamec.st'||url.hostname==='redirectus.net'&&url.pathname==='/streame.html')frame.removeAttribute('sandbox');
+    if(['streamec.st','tvf90.com','la18hd.su'].includes(url.hostname)||url.hostname==='redirectus.net'&&url.pathname==='/streame.html')frame.removeAttribute('sandbox');
     else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
     frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
   open();
