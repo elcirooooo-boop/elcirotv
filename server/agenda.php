@@ -132,13 +132,13 @@ function agenda_feed(string $name,callable $fetch): ?array {
     $old=cached_read('feed-'.$name);return ($old['day']??'')===today()&&time()-($old['loaded']??0)<1800?($old['events']??[]):null;
 }
 function remember_published_signals(array $events,?int $seenAt=null): void {
-    $signals=array_filter(cached_read('published-signals-classic-external')??[],fn($row)=>($row['until']??0)>time());
+    $signals=array_filter(cached_read('published-signals-futbolvivo-external')??[],fn($row)=>($row['until']??0)>time());
     $until=($seenAt??time())+21600;
     if($until>time())foreach($events as $event)foreach($event['signals'] as $signal)if(($signals[$signal['id']]['until']??0)<$until)$signals[$signal['id']]=['until'=>$until,'signal'=>$signal];
-    cached_write('published-signals-classic-external',$signals);
+    cached_write('published-signals-futbolvivo-external',$signals);
 }
 function published_signal(string $id): ?array {
-    $row=(cached_read('published-signals-classic-external')??[])[$id]??null;return ($row['until']??0)>time()?($row['signal']??null):null;
+    $row=(cached_read('published-signals-futbolvivo-external')??[])[$id]??null;return ($row['until']??0)>time()?($row['signal']??null):null;
 }
 function retain_agenda_links(array $events,array $previous): array {
     foreach($previous as $old){$identity=fixture_identity($old);$matches=[];$exact=[];
@@ -148,17 +148,17 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-classic-external');if(($old['version']??0)===1&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
-    $lock=fopen(storage().'/agenda-classic-external.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'classic','day'=>today(),'events'=>[],'channels'=>catalog_signals(),'updatedAt'=>iso(time()),'stale'=>true];}
+    $old=cached_read('agenda-futbolvivo-external-v2');if(($old['version']??0)===2&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $lock=fopen(storage().'/agenda-futbolvivo-external-v2.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'futbolvivo','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{prune_playback_cache();$feeds=[];
-        $feeds[]=agenda_feed('classic-external',fn()=>classic_events());
+        $feeds[]=agenda_feed('futbolvivo-external-v2',fn()=>futbolvivo_events());
         $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
         if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old;$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=catalog_signals();
+        $previous=$old??cached_read('agenda-classic-external');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=[];
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'classic','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-classic-external',$data);return $data;
+        $data=['version'=>2,'provider'=>'futbolvivo','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-futbolvivo-external-v2',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {

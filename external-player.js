@@ -29,7 +29,7 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   const open=()=>{if(disposed)return;const url=new URL(urls[index]);
     // These published embeds require a standard cross-origin iframe.
     // Keep browser same-origin isolation and never change CSP or frame policies.
-    if(['streamec.st','tvf90.com','la18hd.su'].includes(url.hostname)||url.hostname==='redirectus.net'&&url.pathname==='/streame.html')frame.removeAttribute('sandbox');
+    if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname))frame.removeAttribute('sandbox');
     else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
     frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
   open();

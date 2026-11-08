@@ -35,13 +35,17 @@ function futbolvivo_player_url(string $url): bool {
 function futbolvivo_event(string $kind,array $row,string $title,string $league,int $start,bool $live,bool $hasStream): array {
     $page=['us'=>'us','latin'=>'latin','soccer'=>'soccer'][$kind];$url='https://redirectus.net/latin/'.$page.'.html?'.http_build_query(['p'=>$page,'d'=>'redirectus.net',$kind==='soccer'?'m':'id'=>(string)$row['id'],'v'=>'20260917a','ref'=>'futbolvivo.tv']);
     $signal=['id'=>fingerprint('futbolvivo:'.$kind.':'.$row['id']),'name'=>mb_substr($title,0,100),'url'=>$url,'lang'=>'','publishedOnly'=>true,'provider'=>'futbolvivo','sources'=>[['id'=>fingerprint($url),'url'=>$url]]];
-    $signals=[];foreach($row['streams']??[] as $i=>$stream){$embed=$stream['embed_url']??'';if(!is_string($embed)||!futbolvivo_player_url($embed))continue;$key=fingerprint($embed);$signals[$key]=['id'=>$key,'name'=>mb_substr(($stream['name']??null)?:'Señal '.($i+1),0,80).(!empty($stream['language'])?' · '.$stream['language']:''),'url'=>$embed,'lang'=>$stream['language']??'','publishedOnly'=>true,'provider'=>'futbolvivo','sources'=>[['id'=>$key,'url'=>$embed]]];}
+    $signals=[];foreach($row['streams']??[] as $i=>$stream){$embed=$stream['embed_url']??'';if(!is_string($embed)||!futbolvivo_player_url($embed))continue;
+        $direct=$stream['real_url']??null;$canonical=is_string($direct)&&futbolvivo_player_url($direct)?$direct:$embed;$key=fingerprint($canonical);
+        if(!isset($signals[$key]))$signals[$key]=['id'=>$key,'name'=>mb_substr(($stream['name']??null)?:'Señal '.($i+1),0,80).(!empty($stream['language'])?' · '.$stream['language']:''),'url'=>$canonical,'lang'=>$stream['language']??'','publishedOnly'=>true,'provider'=>'futbolvivo','sources'=>[['id'=>$key,'url'=>$canonical]]];
+        if(!in_array($embed,array_column($signals[$key]['sources'],'url'),true))$signals[$key]['sources'][]=['id'=>fingerprint($embed),'url'=>$embed];
+    }
     $signals=array_values($signals);usort($signals,fn($a,$b)=>futbolvivo_signal_rank($a)<=>futbolvivo_signal_rank($b));
     return ['id'=>fingerprint('futbolvivo:event:'.$kind.':'.$row['id']),'legacyIds'=>[],'title'=>$title,'league'=>$league,'startsAt'=>iso($start),'time'=>(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'),'providerLive'=>$live,'signals'=>$signals?:($hasStream?[$signal]:[])];
 }
 function normalize_futbolvivo(array $us,array $soccer,array $latin,array $categories,?int $now=null): array {
     $now??=time();$events=[];$category=[];foreach($categories['categories']??[] as $c)$category[$c['id']]=$c['name'];
-    foreach(['us'=>$us,'latin'=>$latin] as $kind=>$data)foreach($data['matches']??[] as $row){
+    foreach(['latin'=>$latin,'us'=>$us] as $kind=>$data)foreach($data['matches']??[] as $row){
         $live=!empty($row['live']);$start=strtotime($row['starts_at']??'');if(!$start||!empty($row['finished'])||(!$live&&$start<$now-28800))continue;
         $home=trim($row['home']['name']??'');$away=trim($row['away']['name']??'');$title=$home&&$away?$home.' vs '.$away:trim($row['title']??'');if(!$title)continue;
         $sport=$row['sport']??'';$league=$row['league']??($category[$sport]??$row['sport_name']??'Deportes');
@@ -52,7 +56,7 @@ function normalize_futbolvivo(array $us,array $soccer,array $latin,array $catego
     foreach($soccer['matches']??[] as $row){
         if((int)($row['active']??0)!==1||empty($row['has_channels']))continue;
         $live=in_array((int)($row['status']??0),[1,3],true);
-        try{$start=(new DateTimeImmutable(($row['date']??'').' '.($row['time']??''),new DateTimeZone('Europe/Madrid')))->getTimestamp();}catch(Throwable){continue;}
+        try{$start=(new DateTimeImmutable(($row['date']??'').' '.($row['time']??''),new DateTimeZone('UTC')))->getTimestamp();}catch(Throwable){continue;}
         if(!$live&&$start<$now-28800)continue;
         $home=$row['home']['name_es']??$row['home']['name']??'';$away=$row['away']['name_es']??$row['away']['name']??'';
         $events[]=futbolvivo_event('soccer',$row,$home.' vs '.$away,$row['league']['name_es']??$row['league']['name']??'Fútbol',$start,$live,true);
@@ -62,14 +66,18 @@ function normalize_futbolvivo(array $us,array $soccer,array $latin,array $catego
 function futbolvivo_signal_rank(array $signal): int {
     return match(parse_url($signal['url'],PHP_URL_HOST)){'tvf90.com','tv-90.com','futbollibre.ch'=>0,'streamec.st'=>1,default=>2};
 }
+function futbolvivo_team_identity(string $name,string $league): string {
+    $aliases=['napoles'=>'Napoli','celta de vigo'=>'Celta Vigo','angers sco'=>'Angers','le havre ac'=>'Le Havre','olympique marseille'=>'Marseille'];
+    return team_identity($aliases[folded($name)]??$name,$league);
+}
 function futbolvivo_group_events(array $events): array {
     $groups=[];
     foreach($events as $event){$names=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$event['title']);$identity=null;$league=folded($event['league']);
-        if(count($names)===2){$sport=preg_match('/ncaa|nfl|american football/',$league)?'football':(preg_match('/basket|baloncesto|nba/',$league)?'basketball':(preg_match('/hockey|nhl/',$league)?'hockey':(preg_match('/ufc|mma|boxing|boxeo/',$league)?'fight':'soccer')));$teams=array_map(fn($name)=>team_identity($name,$league),$names);sort($teams);$identity=$sport.'|'.json_encode($teams).'|'.(int)preg_match('/femen|women|wnba|nwsl/',$league);}
+        if(count($names)===2){$sport=preg_match('/ncaa|nfl|american football/',$league)?'football':(preg_match('/basket|baloncesto|nba/',$league)?'basketball':(preg_match('/hockey|nhl/',$league)?'hockey':(preg_match('/ufc|mma|boxing|boxeo/',$league)?'fight':'soccer')));$teams=array_map(fn($name)=>futbolvivo_team_identity($name,$league),$names);sort($teams);$identity=$sport.'|'.json_encode($teams).'|'.(int)preg_match('/femen|women|wnba|nwsl/',$league);}
         $chosen=null;foreach($groups as $i=>$g){$old=$g['event'];$same=$identity!==null&&$g['identity']===$identity;
             if(!$same&&$identity!==null&&$g['identity']!==null&&explode('|',$identity)[0]===explode('|',$g['identity'])[0]&&substr($identity,-1)===substr($g['identity'],-1)){
                 $oldNames=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$old['title']);
-                foreach([$league,folded($old['league'])] as $context){$left=array_map(fn($n)=>team_identity($n,$context),$oldNames);$right=array_map(fn($n)=>team_identity($n,$context),$names);sort($left);sort($right);if($left===$right){$same=true;break;}}
+                foreach([$league,folded($old['league'])] as $context){$left=array_map(fn($n)=>futbolvivo_team_identity($n,$context),$oldNames);$right=array_map(fn($n)=>futbolvivo_team_identity($n,$context),$names);sort($left);sort($right);if($left===$right){$same=true;break;}}
             }
             if($old['id']===$event['id']||$same&&today(strtotime($old['startsAt']))===today(strtotime($event['startsAt']))&&abs(strtotime($old['startsAt'])-strtotime($event['startsAt']))<=5400){$chosen=$i;break;}}
         if($chosen===null){$groups[]=['identity'=>$identity,'event'=>$event];continue;}
