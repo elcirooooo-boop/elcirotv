@@ -152,7 +152,7 @@ function agenda(): array {
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
-    $hide=function($signal){unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
+    $hide=function($signal){if(($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
     foreach(in_array($data['provider']??'',['fulbito','futbolvivo'],true)?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$channels[$s['id']]=$hide($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
