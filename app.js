@@ -6,7 +6,7 @@ import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261108e';
 import {requestJSON} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261108a';
-import {createExternalPlayer} from './external-player.js?v=20261108q';
+import {createExternalPlayer} from './external-player.js?v=20261108r';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
