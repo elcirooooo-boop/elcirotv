@@ -138,7 +138,7 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-futbolvivo');if(($old['version']??0)===2&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $old=cached_read('agenda-futbolvivo');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/agenda-futbolvivo.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'futbolvivo','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{prune_playback_cache();$feeds=[];
@@ -148,7 +148,7 @@ function agenda(): array {
         $previous=$old;$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=[];
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>2,'provider'=>'futbolvivo','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-futbolvivo',$data);return $data;
+        $data=['version'=>3,'provider'=>'futbolvivo','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-futbolvivo',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {

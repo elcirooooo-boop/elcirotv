@@ -3,7 +3,8 @@ export function providerPlayerURL(value){
   const legacy=['streamxhd.sbs','stream-xhd.com'].includes(url.hostname)&&url.pathname==='/live1.php'&&/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||'');
   const page={'/latin/us.html':'us','/latin/latin.html':'latin','/latin/soccer.html':'soccer'}[url.pathname];
   const direct=url.hostname==='streamec.st'&&/^\/embed\/ch[0-9]{1,8}\.php$/.test(url.pathname)||url.hostname==='redirectus.net'&&(url.pathname==='/streameast.html'&&/^[1-9][0-9]{0,12}$/.test(url.searchParams.get('id')||'')||url.pathname==='/streame.html'&&/^sc-ch[0-9]{1,8}$/.test(url.searchParams.get('key')||''));
-  const futbolvivo=direct||url.hostname==='redirectus.net'&&page&&url.searchParams.get('p')===page&&url.searchParams.get('d')==='redirectus.net'&&/^[1-9][0-9]{0,12}$/.test(url.searchParams.get(page==='soccer'?'m':'id')||'');
+  const latin=['tvf90.com','futbollibre.ch'].includes(url.hostname)&&/^\/(?:1|2|3|5|hd|canal|plus1)\.php$/.test(url.pathname)&&/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||'')||url.hostname==='tv-90.com'&&['/drm/dsports.php','/drm/clarosports.php'].includes(url.pathname)||url.hostname==='redirectus.net'&&url.pathname==='/streamlat.html'&&/^n[0-9]+-[a-f0-9]{16}$/.test(url.searchParams.get('id')||'');
+  const futbolvivo=latin||direct||url.hostname==='redirectus.net'&&page&&url.searchParams.get('p')===page&&url.searchParams.get('d')==='redirectus.net'&&/^[1-9][0-9]{0,12}$/.test(url.searchParams.get(page==='soccer'?'m':'id')||'');
   if(url.protocol!=='https:'||url.username||url.password||url.port||!legacy&&!futbolvivo)throw Error('El reproductor del proveedor no es válido.');
   return url.href;
 }
