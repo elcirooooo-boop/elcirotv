@@ -18,6 +18,7 @@ try {
         $id=is_string($_GET['source']??null)?$_GET['source']:'';$signal=null;
         foreach(catalog_signals() as $s)if($s['id']===$id){$signal=$s;break;}
         if(!$signal)foreach(agenda()['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
+        if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
         $excluded=array_slice(array_values(array_filter(explode(',',is_string($_GET['exclude']??null)?$_GET['exclude']:''),fn($s)=>preg_match('/^[a-f0-9]{24}$/D',$s))),0,8);
         $resolved=select_playback(alternatives([$signal])[0],$excluded,($_GET['refresh']??'')==='1');

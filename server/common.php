@@ -31,6 +31,14 @@ function cached_write(string $name,array $data): void {
     try {if(file_put_contents($tmp,json_encode($data,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))===false||!rename($tmp,$path))throw new RuntimeException('CACHE_WRITE');}
     finally {if(is_file($tmp))unlink($tmp);}
 }
+function prune_playback_cache(): void {
+    $dir=storage();$marker=$dir.'/cache-cleanup.at';if(is_file($marker)&&@filemtime($marker)>time()-3600)return;
+    // Only disposable playback metadata and abandoned atomic-write files.
+    // Keep the signing key, agenda snapshots and configuration untouched.
+    foreach(glob($dir.'/*')?:[] as $path){$name=basename($path);if(!preg_match('/^(?:(?:startup|native-playback|native-player-page)-[a-f0-9]{24}\.json|write-[a-zA-Z0-9]+)$/D',$name))continue;
+        if(@filemtime($path)<time()-86400)@unlink($path);
+    }@touch($marker);
+}
 function signing_key(): string {
     static $memo;if($memo!==null)return $memo;
     $handle=fopen(storage().'/signing.key','c+');if(!$handle)throw new RuntimeException('KEY_UNAVAILABLE');

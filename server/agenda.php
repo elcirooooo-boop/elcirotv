@@ -92,9 +92,21 @@ function merge_agendas(array $feeds): array {
     foreach($events as &$event){foreach($event['signals'] as &$signal){parse_str(parse_url($signal['url'],PHP_URL_QUERY)??'',$q);if(isset($published[$q['stream']??'']))foreach($published[$q['stream']] as $u)$signal['sources'][]=['id'=>fingerprint($u),'url'=>$u];}unset($signal);$event['signals']=alternatives($event['signals']);}unset($event);
     usort($events,fn($a,$b)=>strcmp($a['startsAt'],$b['startsAt'])?:strcmp($a['title'],$b['title']));return $events;
 }
-function agenda_feed(string $name,callable $fetch): array {
-    try{$events=$fetch();if($events){cached_write('feed-'.$name,['day'=>today(),'loaded'=>time(),'events'=>$events]);return $events;}}catch(Throwable){}
-    $old=cached_read('feed-'.$name);return ($old['day']??'')===today()&&time()-($old['loaded']??0)<1800?($old['events']??[]):[];
+function agenda_feed(string $name,callable $fetch): ?array {
+    try{$events=$fetch();$old=cached_read('feed-'.$name);
+        if(!$events&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800&&!empty($old['events']))return $old['events'];
+        cached_write('feed-'.$name,['day'=>today(),'loaded'=>time(),'events'=>$events]);return $events;
+    }catch(Throwable){}
+    $old=cached_read('feed-'.$name);return ($old['day']??'')===today()&&time()-($old['loaded']??0)<1800?($old['events']??[]):null;
+}
+function remember_published_signals(array $events,?int $seenAt=null): void {
+    $signals=array_filter(cached_read('published-signals')??[],fn($row)=>($row['until']??0)>time());
+    $until=($seenAt??time())+21600;
+    if($until>time())foreach($events as $event)foreach($event['signals'] as $signal)if(($signals[$signal['id']]['until']??0)<$until)$signals[$signal['id']]=['until'=>$until,'signal'=>$signal];
+    cached_write('published-signals',$signals);
+}
+function published_signal(string $id): ?array {
+    $row=(cached_read('published-signals')??[])[$id]??null;return ($row['until']??0)>time()?($row['signal']??null):null;
 }
 function retain_agenda_links(array $events,array $previous): array {
     foreach($previous as $old){$identity=fixture_identity($old);$matches=[];$exact=[];
@@ -104,15 +116,17 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-classic');if(($old['version']??0)===5&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $old=cached_read('agenda-classic');if(($old['version']??0)===6&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/agenda.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_LOADING');}
-    try{$feeds=[];
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['day'=>today(),'events'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    try{prune_playback_cache();$feeds=[];
         $feeds[]=agenda_feed('classic',fn()=>normalize_agenda(fetch_json('https://api.wqxag.com/diaries.json')));
-        $feeds=array_values(array_filter($feeds));
-        if(!$feeds){if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);throw new RuntimeException('AGENDA_UNAVAILABLE');}
+        $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
+        if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
         $previous=$old??cached_read('agenda-single')??cached_read('agenda');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);
-        $data=['version'=>5,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write('agenda-classic',$data);return $data;
+        if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
+        remember_published_signals($events);
+        $data=['version'=>6,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-classic',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
