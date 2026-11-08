@@ -17,12 +17,12 @@ function channel_slug(array $s): ?string {
     return $c['aliases'][$name]??null;
 }
 function alternatives(array $signals): array {
-    foreach($signals as &$s){$urls=array_unique(array_merge(source_urls(channel_slug($s)),array_column($s['sources']??[],'url'),[$s['url']]));$s['sources']=array_map(fn($u)=>['id'=>fingerprint($u),'url'=>$u],array_values($urls));}unset($s);return $signals;
+    foreach($signals as &$s){$urls=array_unique(array_merge(!empty($s['publishedOnly'])?[]:source_urls(channel_slug($s)),array_column($s['sources']??[],'url'),[$s['url']]));$s['sources']=array_map(fn($u)=>['id'=>fingerprint($u),'url'=>$u],array_values($urls));}unset($s);return $signals;
 }
 function catalog_signals(): array {return alternatives(array_map(function($c){return ['id'=>fingerprint('catalog:'.$c['slug']),'slug'=>$c['slug'],'name'=>$c['name'],'lang'=>'Español','url'=>source_urls($c['slug'])[0]];},catalog()['channels']));}
 function rows($value): array {return isset($value['data'])&&is_array($value['data'])?$value['data']:(is_array($value)?$value:[]);}
 function attrs(array $value): array {return $value['attributes']??$value;}
-function normalize_agenda(array $payload,?int $now=null): array {
+function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=false): array {
     $events=[];$raw=$payload['data']??$payload['events']??$payload;
     foreach($raw as $row){
         $a=attrs($row);$title=trim((string)($a['diary_description']??$a['title']??''));$hour=(string)($a['diary_hour']??$a['time']??'');$date=substr($a['date_diary']??$a['date']??today($now),0,10);
@@ -31,15 +31,27 @@ function normalize_agenda(array $payload,?int $now=null): array {
         try{$start=(new DateTimeImmutable($timestamp))->getTimestamp();}catch(Throwable){continue;}
         if(!$title||today($start)!==today($now))continue;
         $colon=strpos($title,':');$league=$colon===false?($a['sport']??'Deportes'):trim(substr($title,0,$colon));$match=$colon===false?$title:trim(substr($title,$colon+1));
+        if($publishedOnly&&preg_match('/^(.+?)\s+[-–—]\s+(.+)$/u',$title,$parts)){$league=trim($parts[1]);$match=trim($parts[2]);}
         $id=fingerprint(iso($start).'|'.slugify($league).'|'.slugify($match));$signals=[];$seen=[];
         foreach(rows($a['embeds']??[]) as $i=>$embed){$embed=attrs($embed);$url=$embed['embed_iframe']??$embed['iframe']??$embed['url']??'';if(!$url)continue;
-            try{$url=absolute_url($url,'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);}catch(Throwable){continue;}
+            try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;}catch(Throwable){continue;}
             if(isset($seen[$url]))continue;$seen[$url]=true;$signals[]=['id'=>fingerprint($url),'name'=>mb_substr($embed['embed_name']??$embed['name']??'Opción '.($i+1),0,100),'url'=>$url,'lang'=>$embed['lang']??''];
+            if($publishedOnly)$signals[count($signals)-1]['publishedOnly']=true;
         }
         $legacy=[];
         try{$previous=(new DateTimeImmutable(str_contains($hour,'T')?$hour:$date.'T'.substr($hour?:'12:00:00',0,8).(isset($a['diary_description'])?'-05:00':'Z')))->getTimestamp();if($previous!==$start)$legacy[]=fingerprint(iso($previous).'|'.slugify($league).'|'.slugify($match));}catch(Throwable){}
         $events[]=['id'=>$id,'legacyIds'=>$legacy,'title'=>$match,'league'=>$league,'startsAt'=>iso($start),'time'=>$hour?(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'):'--:--','signals'=>alternatives($signals)];
+        if($publishedOnly)foreach(['homeLogo','awayLogo'] as $field)if(is_string($a[$field]??null)&&preg_match('~^https://a\.espncdn\.com/i/teamlogos/[^\s<>"\x27]+$~D',$a[$field]))$events[count($events)-1][$field]=$a[$field];
     }return $events;
+}
+function fulbito_player_url(string $url): bool {
+    $p=parse_url($url);return ($p['scheme']??'')==='https'&&in_array(strtolower($p['host']??''),['streamxhd.sbs','stream-xhd.com'],true)&&($p['path']??'')==='/live1.php';
+}
+function fulbito_channels(): array {
+    $old=cached_read('fulbito-channels');if(time()-($old['loaded']??0)<300)return $old['signals'];
+    try{$signals=[];foreach(fetch_json('https://fulbitotv.xyz/canales') as $row){$url=$row['iframe']??'';if(!is_string($url)||!fulbito_player_url($url))continue;$signals[fingerprint($url)]=['id'=>fingerprint($url),'name'=>mb_substr((string)($row['nombre']??'Canal'),0,100),'url'=>$url,'lang'=>'Español','publishedOnly'=>true];}
+        $signals=alternatives(array_values($signals));cached_write('fulbito-channels',['loaded'=>time(),'signals'=>$signals]);return $signals;
+    }catch(Throwable){return $old['signals']??[];}
 }
 function team_identity(string $name,string $league): string {
     static $index;if($index===null)$index=json_decode(file_get_contents(__DIR__.'/teams.json'),true,64,JSON_THROW_ON_ERROR);
@@ -100,13 +112,13 @@ function agenda_feed(string $name,callable $fetch): ?array {
     $old=cached_read('feed-'.$name);return ($old['day']??'')===today()&&time()-($old['loaded']??0)<1800?($old['events']??[]):null;
 }
 function remember_published_signals(array $events,?int $seenAt=null): void {
-    $signals=array_filter(cached_read('published-signals')??[],fn($row)=>($row['until']??0)>time());
+    $signals=array_filter(cached_read('published-signals-fulbito')??[],fn($row)=>($row['until']??0)>time());
     $until=($seenAt??time())+21600;
     if($until>time())foreach($events as $event)foreach($event['signals'] as $signal)if(($signals[$signal['id']]['until']??0)<$until)$signals[$signal['id']]=['until'=>$until,'signal'=>$signal];
-    cached_write('published-signals',$signals);
+    cached_write('published-signals-fulbito',$signals);
 }
 function published_signal(string $id): ?array {
-    $row=(cached_read('published-signals')??[])[$id]??null;return ($row['until']??0)>time()?($row['signal']??null):null;
+    $row=(cached_read('published-signals-fulbito')??[])[$id]??null;return ($row['until']??0)>time()?($row['signal']??null):null;
 }
 function retain_agenda_links(array $events,array $previous): array {
     foreach($previous as $old){$identity=fixture_identity($old);$matches=[];$exact=[];
@@ -116,22 +128,22 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-classic');if(($old['version']??0)===6&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
-    $lock=fopen(storage().'/agenda.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['day'=>today(),'events'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    $old=cached_read('agenda-fulbito');if(($old['version']??0)===1&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $lock=fopen(storage().'/agenda-fulbito.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>(cached_read('fulbito-channels')['signals']??[]),'updatedAt'=>iso(time()),'stale'=>true];}
     try{prune_playback_cache();$feeds=[];
-        $feeds[]=agenda_feed('classic',fn()=>normalize_agenda(fetch_json('https://api.wqxag.com/diaries.json')));
+        $feeds[]=agenda_feed('fulbito',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
         $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
         if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-single')??cached_read('agenda');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);
+        $previous=$old;$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=fulbito_channels();
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
-        remember_published_signals($events);
-        $data=['version'=>6,'day'=>today(),'events'=>$events,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-classic',$data);return $data;
+        remember_published_signals(array_merge($events,[['signals'=>$channels]]));
+        $data=['version'=>1,'provider'=>'fulbito','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-fulbito',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
-    $hide=function($signal){unset($signal['url'],$signal['sources']);return $signal;};$channels=[];
-    foreach(catalog_signals() as $s)$channels[$s['id']]=$hide($s);
+    $hide=function($signal){unset($signal['url'],$signal['sources'],$signal['publishedOnly']);return $signal;};$channels=[];
+    foreach(($data['provider']??'')==='fulbito'?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$channels[$s['id']]=$hide($s);$s=$hide($s);}unset($event,$s);
     return ['day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }

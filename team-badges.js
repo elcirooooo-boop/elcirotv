@@ -169,13 +169,14 @@ export function teamBadges(event) {
   }
   if(!names.length||competition.individual)return competitionMarkup(competition);
   const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
-  const badge = name => {
+  const badge = (name,index) => {
     const team = teamBadge(name,league);
     const initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toLocaleUpperCase();
-    const logo = team && (/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo)||/^\/logos\/teams\/[a-z0-9-]+\.png$/.test(team.logo)) ? team.logo : competition.logo;
+    const supplied=event[index===0?'homeLogo':'awayLogo'];
+    const logo = typeof supplied==='string'&&/^https:\/\/a\.espncdn\.com\/i\/teamlogos\/[^\s<>"']+$/.test(supplied)?supplied:team && (/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo)||/^\/logos\/teams\/[a-z0-9-]+\.png$/.test(team.logo)) ? team.logo : competition.logo;
     return `<span class="team-badge" title="${escape(team?name:competition.label)}">${logo?`<img data-team-badge data-fallback="${escape(competition.logo)}" src="${escape(logo)}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="team-initials"${logo?' hidden':''}>${escape(initials)}</span></span>`;
   };
-  return `<span class="match-badges" aria-hidden="true">${badge(names[0])}<span class="badge-versus">vs</span>${badge(names[1])}</span>`;
+  return `<span class="match-badges" aria-hidden="true">${badge(names[0],0)}<span class="badge-versus">vs</span>${badge(names[1],1)}</span>`;
 }
 
 export function handleBadgeError(event) {

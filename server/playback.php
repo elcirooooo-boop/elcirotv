@@ -24,7 +24,7 @@ function published_playback_url(string $html): ?string {
 }
 function supported_player_host(string $host): bool {
     $host=preg_replace('/^www\./','',strtolower($host));
-    return in_array($host,['rojadirectatvmas.net','rojadirectatvplay.org','tarjetadigital.club','la18hd.su','tvf90.com','rojadirectatv.company','tarjetarojatv.cam','rodrixtv.site','streamxhd.sbs','zonalivetv.biz','dog.tilinhd.lol','sportsoonline.click'],true)||preg_match('/^[a-f0-9]{32}\.dynmetal\.net$/D',$host)===1;
+    return in_array($host,['rojadirectatvmas.net','rojadirectatvplay.org','tarjetadigital.club','la18hd.su','tvf90.com','rojadirectatv.company','tarjetarojatv.cam','rodrixtv.site','streamxhd.sbs','stream-xhd.com','zonalivetv.biz','dog.tilinhd.lol','sportsoonline.click'],true)||preg_match('/^[a-f0-9]{32}\.dynmetal\.net$/D',$host)===1;
 }
 function resolve_player(string $initial): array {
     $pending=[[$initial,'https://tarjetadigital.club/',0]];$seen=[];$deadline=microtime(true)+18;
@@ -96,7 +96,7 @@ function media_identity(string $url): string {
 }
 function renew_media(array $permission,string $range): ?array {
     try{$player=safe_url($permission['referer']);$original=safe_url($permission['url']);parse_str($player['query']??'',$q);
-        if(!in_array(preg_replace('/^www\./','',$player['host']),['tvf90.com','la18hd.su'],true)||!preg_match('/^[-a-z0-9_]{1,80}$/i',$q['stream']??'')||!preg_match('/\.(m3u8|ts|m4s|aac)$/i',$original['path']??''))return null;
+        if(!in_array(preg_replace('/^www\./','',$player['host']),['tvf90.com','la18hd.su','streamxhd.sbs','stream-xhd.com'],true)||!preg_match('/^[-a-z0-9_]{1,80}$/i',$q['stream']??'')||!preg_match('/\.(m3u8|ts|m4s|aac)$/i',$original['path']??''))return null;
         $fresh=resolve_player($permission['referer']);$target=$fresh['url'];
         if(preg_match('/\.m3u8$/i',$original['path'])){if(media_identity($permission['url'])!==media_identity($target))return null;return net_request($target,$fresh['referer'],$range,19000000);}
         for($depth=0;$depth<3;$depth++){$r=net_request($target,$fresh['referer'],'',1000000,5);if($r['status']!==200){fclose($r['stream']);return null;}$url=$r['url'];$text=read_text($r);if(!str_starts_with(ltrim($text),'#EXTM3U'))return null;
