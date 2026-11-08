@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 function direct_player_url(string $url): bool {
-    return (parse_url($url,PHP_URL_HOST)??'')==='tvf90.com'&&classic_player_url($url);
+    $p=parse_url($url);if(($p['host']??'')!=='tvf90.com')return false;
+    if(classic_player_url($url))return true;
+    parse_str($p['query']??'',$q);
+    return ($p['scheme']??'')==='https'&&!isset($p['user'])&&!isset($p['pass'])&&!isset($p['port'])&&($p['path']??'')==='/online.php'&&preg_match('/^[-a-z0-9_]{1,80}$/iD',(string)($q['stream']??''))===1;
 }
 function direct_expiry(string $url): ?int {
     parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);
@@ -24,8 +27,11 @@ function direct_result(array $result,int $now): array {
 }
 // Only read published player metadata: no manifests, fragments, ads or remote JS.
 function resolve_direct_metadata(string $initial,?callable $fetch=null,?int $now=null): array {
+    if(!direct_player_url($initial))throw new RuntimeException('CHANNEL_UNAVAILABLE');
     $fetch??=fn(...$args)=>net_request(...$args);$now??=time();
-    $pending=[[$initial,'https://tvf90.com/']];$seen=[];
+    $pages=json_decode(file_get_contents(__DIR__.'/tvf90-players.json'),true,32,JSON_THROW_ON_ERROR);
+    parse_str(parse_url($initial,PHP_URL_QUERY)??'',$query);$published=$pages[$query['stream']??'']??$initial;
+    $pending=[[$published,'https://tvf90.com/']];$seen=[];
     while($pending&&count($seen)<3){
         [$url,$ref]=array_shift($pending);if(!direct_player_url($url)||isset($seen[$url]))continue;$seen[$url]=true;
         $r=$fetch($url,$ref,'',1500000,8);$html=read_text($r);if($r['status']!==200)continue;
