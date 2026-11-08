@@ -36,7 +36,7 @@ function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=fals
         foreach(rows($a['embeds']??[]) as $i=>$embed){$embed=attrs($embed);$url=$embed['embed_iframe']??$embed['iframe']??$embed['url']??'';if(!$url)continue;
             try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;}catch(Throwable){continue;}
             if(isset($seen[$url]))continue;$seen[$url]=true;$signals[]=['id'=>fingerprint($url),'name'=>mb_substr($embed['embed_name']??$embed['name']??'Opción '.($i+1),0,100),'url'=>$url,'lang'=>$embed['lang']??''];
-            if($publishedOnly)$signals[count($signals)-1]['publishedOnly']=true;
+            if($publishedOnly){$signals[count($signals)-1]['publishedOnly']=true;$signals[count($signals)-1]['id']=fulbito_signal_id($url);}
         }
         $legacy=[];
         try{$previous=(new DateTimeImmutable(str_contains($hour,'T')?$hour:$date.'T'.substr($hour?:'12:00:00',0,8).(isset($a['diary_description'])?'-05:00':'Z')))->getTimestamp();if($previous!==$start)$legacy[]=fingerprint(iso($previous).'|'.slugify($league).'|'.slugify($match));}catch(Throwable){}
@@ -47,10 +47,19 @@ function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=fals
 function fulbito_player_url(string $url): bool {
     $p=parse_url($url);return ($p['scheme']??'')==='https'&&in_array(strtolower($p['host']??''),['streamxhd.sbs','stream-xhd.com'],true)&&($p['path']??'')==='/live1.php';
 }
+function fulbito_signal_id(string $url): string {
+    parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);return fingerprint('fulbito:'.strtolower((string)($q['stream']??$url)));
+}
+function combine_fulbito_sources(array $events,array $channels): array {
+    $pool=[];foreach(array_merge($events,[['signals'=>$channels]]) as $event)foreach($event['signals'] as $s)foreach($s['sources'] as $source)$pool[$s['id']][$source['url']]=$source;
+    foreach($events as &$event)foreach($event['signals'] as &$s)$s['sources']=array_values($pool[$s['id']]);unset($event,$s);
+    foreach($channels as &$s)$s['sources']=array_values($pool[$s['id']]);unset($s);
+    return [$events,$channels];
+}
 function fulbito_channels(): array {
-    $old=cached_read('fulbito-channels');if(time()-($old['loaded']??0)<300)return $old['signals'];
-    try{$signals=[];foreach(fetch_json('https://fulbitotv.xyz/canales') as $row){$url=$row['iframe']??'';if(!is_string($url)||!fulbito_player_url($url))continue;$signals[fingerprint($url)]=['id'=>fingerprint($url),'name'=>mb_substr((string)($row['nombre']??'Canal'),0,100),'url'=>$url,'lang'=>'Español','publishedOnly'=>true];}
-        $signals=alternatives(array_values($signals));cached_write('fulbito-channels',['loaded'=>time(),'signals'=>$signals]);return $signals;
+    $old=cached_read('fulbito-channels-v2');if(time()-($old['loaded']??0)<300)return $old['signals'];
+    try{$signals=[];foreach(fetch_json('https://fulbitotv.xyz/canales') as $row){$url=$row['iframe']??'';if(!is_string($url)||!fulbito_player_url($url))continue;$id=fulbito_signal_id($url);$signals[$id]=['id'=>$id,'name'=>mb_substr((string)($row['nombre']??'Canal'),0,100),'url'=>$url,'lang'=>'Español','publishedOnly'=>true];}
+        $signals=alternatives(array_values($signals));cached_write('fulbito-channels-v2',['loaded'=>time(),'signals'=>$signals]);return $signals;
     }catch(Throwable){return $old['signals']??[];}
 }
 function team_identity(string $name,string $league): string {
@@ -128,17 +137,17 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-fulbito');if(($old['version']??0)===1&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $old=cached_read('agenda-fulbito');if(($old['version']??0)===2&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/agenda-fulbito.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>(cached_read('fulbito-channels')['signals']??[]),'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>(cached_read('fulbito-channels-v2')['signals']??[]),'updatedAt'=>iso(time()),'stale'=>true];}
     try{prune_playback_cache();$feeds=[];
         $feeds[]=agenda_feed('fulbito',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
         $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
         if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old;$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=fulbito_channels();
+        $previous=$old;$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);[$events,$channels]=combine_fulbito_sources($events,fulbito_channels());
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'fulbito','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-fulbito',$data);return $data;
+        $data=['version'=>2,'provider'=>'fulbito','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-fulbito',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
