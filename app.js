@@ -3,7 +3,7 @@ import {createLivePlayer} from './live-player.js?v=20261109a';
 import {matchSchedule,scheduleText} from './schedule.js';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261108b';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261108e';
-import {requestJSON} from './api-client.js?v=20261107h';
+import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261109b';
 
@@ -26,7 +26,7 @@ function heartbeat(){
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
   return presenceQueue;
 }
-function viewerLabel(id){if(phpAPI)return '';return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
+function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
 function stop(){playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
@@ -53,7 +53,7 @@ async function play(signal,signals,{tried=new Set(),refresh=false}={}){
     },
     onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
     onProgress:()=>{if(active())lastProgress=Date.now();},
-    onState:()=>{if(active()&&!phpAPI)void heartbeat().then(refreshViewers);},
+    onState:()=>{if(active())void heartbeat().then(refreshViewers);},
     onUnavailable:()=>{if(!active())return;const next=signals.find(s=>!tried.has(s.id));if(next)void play(next,signals,{tried});else status.textContent='No hay señales disponibles para este partido en este momento. Puedes reintentar más tarde.';},
   });
   document.querySelector('#retry').onclick=()=>play(signal,signals,{refresh:true});
@@ -130,8 +130,8 @@ async function render(){
     }else if(location.pathname.startsWith('/canal/')){
       const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);
     }else throw Error('No encontramos esta página.');
-    if(!phpAPI){void heartbeat().then(refreshViewers);
-    if(!tracking)tracking=setInterval(()=>{if(document.hidden&&(!video||video.paused||video.ended))return;void heartbeat().then(refreshViewers);},30000);}
+    void heartbeat().then(refreshViewers);
+    if(!tracking)tracking=setInterval(()=>{if(document.hidden&&(!video||video.paused||video.ended))return;void heartbeat().then(refreshViewers);},30000);
   }catch(error){main.innerHTML=intro('Vuelve a intentarlo.',error.message)+'<a class="back-link" href="/">← Ver partidos</a><button id="reload" class="primary-button">Actualizar agenda</button>';main.querySelector('#reload').onclick=()=>{data=null;void render();};}
 }
 setInterval(()=>updateLiveStatuses(main),15000);
@@ -142,7 +142,7 @@ async function refreshAgenda(){
   finally{agendaLoading=false;}
 }
 setInterval(()=>void refreshAgenda(),60000);
-document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();if(!phpAPI)void heartbeat().then(refreshViewers);});
-addEventListener('pagehide',()=>{if(!phpAPI)navigator.sendBeacon('/api/presence',new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
+document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();void heartbeat().then(refreshViewers);});
+addEventListener('pagehide',()=>{navigator.sendBeacon(apiURL('presence',phpAPI),new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
 void render();
 
