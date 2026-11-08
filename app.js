@@ -5,7 +5,7 @@ import {teamBadges,handleBadgeError} from './team-badges.js?v=20261108b';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261108e';
 import {requestJSON} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
-import {createPlayerFullscreen} from './fullscreen.js?v=20261108a';
+import {createPlayerFullscreen} from './fullscreen.js?v=20261109b';
 
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
@@ -145,3 +145,4 @@ setInterval(()=>void refreshAgenda(),60000);
 document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();if(!phpAPI)void heartbeat().then(refreshViewers);});
 addEventListener('pagehide',()=>{if(!phpAPI)navigator.sendBeacon('/api/presence',new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
 void render();
+
