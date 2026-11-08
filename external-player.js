@@ -22,15 +22,12 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   frame.title='Reproductor del proveedor · '+name;
   frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
   frame.setAttribute('allowfullscreen','');
-  frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
+  frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation');
   frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
   frame.className='external-player';
   container.replaceChildren(frame);
-  const open=()=>{if(disposed)return;const url=new URL(urls[index]);
-    // These published embeds require a standard cross-origin iframe.
-    // Keep browser same-origin isolation and never change CSP or frame policies.
-    if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname))frame.removeAttribute('sandbox');
-    else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
+  const open=()=>{if(disposed)return;
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation');
     frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
   open();
   return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';frame.remove();}};
