@@ -1,5 +1,10 @@
 <?php
 declare(strict_types=1);
+function external_playback(array $signal): array {
+    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){$url=$source['url'];if(fulbito_player_url($url))$sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];}
+    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
+    return ['transport'=>'embed','name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
+}
 function published_player_config(string $html): ?array {
     if(!preg_match('~window\._econfig\s*=\s*["\']([A-Za-z0-9+/=]+)["\']~',$html,$m))return null;
     if(strlen($m[1])>250000)return null;$raw=base64_decode($m[1],true);if($raw===false)return null;$size=(int)ceil(strlen($raw)/4);$parts=[];

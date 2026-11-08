@@ -5,6 +5,7 @@ import {teamBadges,handleBadgeError} from './team-badges.js?v=20261108b';
 import {liveIndicator,updateLiveStatuses} from './live-status.js';
 import {requestJSON} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
+import {createExternalPlayer} from './external-player.js?v=20261108c';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -24,7 +25,7 @@ function heartbeat(){
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
   return presenceQueue;
 }
-function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
+function viewerLabel(id){if(phpAPI)return '';return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
 function stop(){playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
@@ -39,6 +40,21 @@ async function play(signal,signals,{tried=new Set()}={}){
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const status=document.querySelector('#signalStatus');
+  if(phpAPI){
+    status.textContent='Cargando reproductor del proveedor…';
+    document.querySelector('#providerOpen').hidden=true;document.querySelector('#providerNext').hidden=true;
+    document.querySelector('#retry').onclick=()=>play(signal,signals);
+    document.querySelector('#fullscreen').onclick=()=>{const wrap=document.querySelector('.video-wrap');if(wrap.requestFullscreen)void wrap.requestFullscreen().catch(()=>{});};
+    try{
+      const source=await preparedPlayback.read(identity);if(!active())return;
+      if(source.transport!=='embed')throw Error('Recarga la página para cargar el reproductor externo.');
+      const open=document.querySelector('#providerOpen'),next=document.querySelector('#providerNext');
+      player=createExternalPlayer({container:document.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onChange:({url,index,total})=>{open.href=url;open.hidden=false;next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. Toca reproducir dentro del vídeo.';}});
+      next.onclick=()=>player?.next();
+    }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
+    if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
   video=document.querySelector('video');
   const active=()=>playerGeneration===generation&&selected===identity;
   player=createLivePlayer({
@@ -56,7 +72,7 @@ async function play(signal,signals,{tried=new Set()}={}){
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button>${phpAPI?'<button id="providerNext" hidden>Otra opción del proveedor</button><a id="providerOpen" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Abrir reproductor del proveedor ↗</a>':''}</div>${phpAPI?'<p class="player-note">Este reproductor pertenece al proveedor y puede mostrar publicidad. Si no carga aquí, pulsa «Abrir reproductor del proveedor».</p>':''}</section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">Selecciona el canal con el que quieres ver ${event?'este partido':'la transmisión'}.</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
@@ -123,8 +139,8 @@ async function render(){
     }else if(location.pathname.startsWith('/canal/')){
       const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);
     }else throw Error('No encontramos esta página.');
-    void heartbeat().then(refreshViewers);
-    if(!tracking)tracking=setInterval(()=>{if(document.hidden&&(!video||video.paused||video.ended))return;void heartbeat().then(refreshViewers);},30000);
+    if(!phpAPI){void heartbeat().then(refreshViewers);
+    if(!tracking)tracking=setInterval(()=>{if(document.hidden&&(!video||video.paused||video.ended))return;void heartbeat().then(refreshViewers);},30000);}
   }catch(error){main.innerHTML=intro('Vuelve a intentarlo.',error.message)+'<a class="back-link" href="/">← Ver partidos</a><button id="reload" class="primary-button">Actualizar agenda</button>';main.querySelector('#reload').onclick=()=>{data=null;void render();};}
 }
 setInterval(()=>updateLiveStatuses(main),15000);
@@ -135,6 +151,6 @@ async function refreshAgenda(){
   finally{agendaLoading=false;}
 }
 setInterval(()=>void refreshAgenda(),60000);
-document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();void heartbeat().then(refreshViewers);});
-addEventListener('pagehide',()=>{navigator.sendBeacon('/api/presence',new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
+document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();if(!phpAPI)void heartbeat().then(refreshViewers);});
+addEventListener('pagehide',()=>{if(!phpAPI)navigator.sendBeacon('/api/presence',new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
 void render();

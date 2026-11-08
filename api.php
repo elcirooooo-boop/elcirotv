@@ -11,6 +11,8 @@ function respond(array $data,int $status=200): never {http_response_code($status
 $action=$_GET['a']??'';
 if(!is_string($action)||!in_array($action,['agenda','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
 $method=$action==='presence'?'POST':'GET';if(($_SERVER['REQUEST_METHOD']??'')!==$method){header('Allow: '.$method);respond(['error'=>'Método no permitido.'],405);}
+// Video is served by the provider's iframe. Never relay old video grants.
+if($action==='media')respond(['error'=>'La reproducción ahora utiliza el reproductor externo. Recarga la página.'],410);
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
@@ -20,20 +22,7 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
-        $excluded=array_slice(array_values(array_filter(explode(',',is_string($_GET['exclude']??null)?$_GET['exclude']:''),fn($s)=>preg_match('/^[a-f0-9]{24}$/D',$s))),0,8);
-        $resolved=select_playback(alternatives([$signal])[0],$excluded,($_GET['refresh']??'')==='1');
-        respond(['url'=>'/api/media?t='.rawurlencode(grant_media($resolved['url'],$resolved['referer'],time()+21600)),'name'=>$signal['name'],'sourceKey'=>$resolved['sourceKey'],'transport'=>'php']);
-    }
-    if($action==='media'){
-        try{$permission=verify_media(is_string($_GET['t']??null)?$_GET['t']:'');}catch(Throwable){respond(['error'=>'La sesión venció. Vuelve a abrir la señal.'],403);}
-        $range=$_SERVER['HTTP_RANGE']??'';
-        if($range===''&&($startup=startup_manifest($permission['url'],$permission['referer']))){header('Content-Type: application/vnd.apple.mpegurl');echo rewrite_manifest($startup['text'],$startup['base'],$permission['referer'],$permission['expiry']);exit;}
-        $r=shared_media_response($permission['url'],$permission['referer'],$range);
-        if(in_array($r['status'],[401,403],true)){$renewed=renew_media($permission,$range);if($renewed){fclose($r['stream']);$r=$renewed;}}
-        $type=$r['headers']['content-type']??'application/octet-stream';
-        if($r['status']<200||$r['status']>=300||preg_match('/html|javascript|json|svg/i',$type)){fclose($r['stream']);respond(['error'=>'Señal no disponible.'],in_array($r['status'],[401,403],true)?$r['status']:502);}
-        if(preg_match('/mpegurl/i',$type)||preg_match('/\.m3u8$/i',parse_url($r['url'],PHP_URL_PATH)??'')){header('Content-Type: application/vnd.apple.mpegurl');$text=read_text($r);remember_startup_manifest($permission['url'],$permission['referer'],$r['url'],$text);echo rewrite_manifest($text,$r['url'],$permission['referer'],$permission['expiry']);exit;}
-        http_response_code($r['status']);header('Content-Type: '.$type);header('Cache-Control: private, max-age=5');foreach(['content-range','accept-ranges'] as $name)if(isset($r['headers'][$name]))header($name.': '.$r['headers'][$name]);fpassthru($r['stream']);fclose($r['stream']);exit;
+        respond(external_playback($signal));
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';
