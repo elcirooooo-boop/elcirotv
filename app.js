@@ -5,12 +5,13 @@ import {teamBadges,handleBadgeError} from './team-badges.js?v=20261108b';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261108e';
 import {requestJSON} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
+import {createPlayerFullscreen} from './fullscreen.js?v=20261108a';
 import {createExternalPlayer} from './external-player.js?v=20261108k';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,player;
+let playerGeneration=0,player,playerFullscreen;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
@@ -27,7 +28,7 @@ function heartbeat(){
 }
 function viewerLabel(id){if(phpAPI)return '';return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
+function stop(){playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
@@ -39,13 +40,14 @@ async function play(signal,signals,{tried=new Set()}={}){
   updateMatchShare(signal);
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
+  playerFullscreen=createPlayerFullscreen({section:document.querySelector('#videoSection'),button:document.querySelector('#fullscreen')});
   const status=document.querySelector('#signalStatus');
   const active=()=>playerGeneration===generation&&selected===identity;
   if(phpAPI){
     status.textContent='Cargando reproductor del proveedor…';
     document.querySelector('#providerOpen').hidden=true;document.querySelector('#providerNext').hidden=true;
     document.querySelector('#retry').onclick=()=>play(signal,signals);
-    document.querySelector('#fullscreen').onclick=()=>{const wrap=document.querySelector('.video-wrap');if(wrap.requestFullscreen)void wrap.requestFullscreen().catch(()=>{});};
+
     try{
       const source=await preparedPlayback.read(identity);if(!active())return;
       if(source.transport!=='embed')throw Error('Recarga la página para cargar el reproductor externo.');
@@ -66,7 +68,7 @@ async function play(signal,signals,{tried=new Set()}={}){
     onUnavailable:()=>{if(!active())return;const next=signals.find(s=>!tried.has(s.id));if(next)void play(next,signals,{tried});else status.textContent='No hay señales disponibles para este partido en este momento. Puedes reintentar más tarde.';},
   });
   document.querySelector('#retry').onclick=()=>play(signal,signals);
-  document.querySelector('#fullscreen').onclick=()=>{if(video.requestFullscreen)void video.requestFullscreen();else video.webkitEnterFullscreen?.();};
+
   await player.start();
   if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
 }

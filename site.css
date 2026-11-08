@@ -13,3 +13,10 @@
 .video-wrap .external-player{display:block;width:100%;height:100%;border:0}.video-wrap:fullscreen{border-radius:0;width:100vw;height:100vh;aspect-ratio:auto;margin:0}
 
 .video-wrap.external-launch{aspect-ratio:auto;background:transparent;padding:24px 0;overflow:visible}.external-launch .primary-button{display:inline-block}
+
+#videoSection.player-expanded{position:fixed;inset:0;z-index:2147483647;box-sizing:border-box;width:100%;height:100vh;height:100dvh;margin:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);background:#000;display:flex;flex-direction:column;overflow:hidden}
+#videoSection.player-expanded .video-wrap{flex:1;min-height:0;width:100%;margin:0;border-radius:0;aspect-ratio:auto}
+#videoSection.player-expanded .status-actions{flex:none;display:flex;gap:8px;margin:0;padding:8px;max-height:30%;overflow:auto;background:#111}
+#videoSection.player-expanded .status-actions button{min-height:44px;padding:8px 12px;color:#fff;background:#252525;border:1px solid #666;border-radius:8px}
+#videoSection.player-expanded #fullscreen{order:-1;background:#006dcc}
+#videoSection.player-expanded .signal-status,#videoSection.player-expanded .player-note,#videoSection.player-expanded #providerOpen{display:none}
