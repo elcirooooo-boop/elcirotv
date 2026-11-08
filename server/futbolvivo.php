@@ -19,14 +19,21 @@ function futbolvivo_fetch(string $path): array {
     if($r['status']!==200){fclose($r['stream']);throw new RuntimeException('AGENDA_HTTP');}return futbolvivo_decode(read_text($r));
 }
 function futbolvivo_player_url(string $url): bool {
-    $p=parse_url($url);if(($p['scheme']??'')!=='https'||($p['host']??'')!=='redirectus.net'||isset($p['user'])||isset($p['pass'])||isset($p['port']))return false;
+    $p=parse_url($url);if(($p['scheme']??'')!=='https'||isset($p['user'])||isset($p['pass'])||isset($p['port']))return false;
+    if(($p['host']??'')==='streamec.st')return preg_match('~^/embed/ch[0-9]{1,8}\.php$~D',$p['path']??'')===1;
+    if(($p['host']??'')!=='redirectus.net')return false;
+    parse_str($p['query']??'',$direct);
+    if(($p['path']??'')==='/streameast.html')return preg_match('/^[1-9][0-9]{0,12}$/D',(string)($direct['id']??''))===1;
+    if(($p['path']??'')==='/streame.html')return preg_match('/^sc-ch[0-9]{1,8}$/D',(string)($direct['key']??''))===1;
     parse_str($p['query']??'',$q);$page=match($p['path']??''){'/latin/us.html'=>'us','/latin/latin.html'=>'latin','/latin/soccer.html'=>'soccer',default=>null};
     return $page!==null&&($q['p']??'')===$page&&($q['d']??'')==='redirectus.net'&&preg_match('/^[1-9][0-9]{0,12}$/D',(string)($q[$page==='soccer'?'m':'id']??''))===1;
 }
 function futbolvivo_event(string $kind,array $row,string $title,string $league,int $start,bool $live,bool $hasStream): array {
     $page=['us'=>'us','latin'=>'latin','soccer'=>'soccer'][$kind];$url='https://redirectus.net/latin/'.$page.'.html?'.http_build_query(['p'=>$page,'d'=>'redirectus.net',$kind==='soccer'?'m':'id'=>(string)$row['id'],'v'=>'20260917a','ref'=>'futbolvivo.tv']);
     $signal=['id'=>fingerprint('futbolvivo:'.$kind.':'.$row['id']),'name'=>mb_substr($title,0,100),'url'=>$url,'lang'=>'','publishedOnly'=>true,'provider'=>'futbolvivo','sources'=>[['id'=>fingerprint($url),'url'=>$url]]];
-    return ['id'=>fingerprint('futbolvivo:event:'.$kind.':'.$row['id']),'legacyIds'=>[],'title'=>$title,'league'=>$league,'startsAt'=>iso($start),'time'=>(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'),'providerLive'=>$live,'signals'=>$hasStream?[$signal]:[]];
+    $signals=[];foreach($row['streams']??[] as $i=>$stream){$embed=$stream['embed_url']??'';if(!is_string($embed)||!futbolvivo_player_url($embed))continue;$key=fingerprint($embed);$signals[$key]=['id'=>$key,'name'=>'Señal '.($i+1).(!empty($stream['language'])?' · '.$stream['language']:''),'url'=>$embed,'lang'=>$stream['language']??'','publishedOnly'=>true,'provider'=>'futbolvivo','sources'=>[['id'=>$key,'url'=>$embed]]];}
+    $signals=array_values($signals);usort($signals,fn($a,$b)=>(int)str_contains($b['url'],'streamec.st/')<=>(int)str_contains($a['url'],'streamec.st/'));
+    return ['id'=>fingerprint('futbolvivo:event:'.$kind.':'.$row['id']),'legacyIds'=>[],'title'=>$title,'league'=>$league,'startsAt'=>iso($start),'time'=>(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'),'providerLive'=>$live,'signals'=>$signals?:($hasStream?[$signal]:[])];
 }
 function normalize_futbolvivo(array $us,array $soccer,array $latin,array $categories,?int $now=null): array {
     $now??=time();$events=[];$category=[];foreach($categories['categories']??[] as $c)$category[$c['id']]=$c['name'];
