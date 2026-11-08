@@ -5,11 +5,21 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
   let delivered=false,unavailable=false,waitingSince=0;
+  let renewalTimer,renewalPending=false,tokenExpiry=0,sourceURL='';
+  function renewAfter(delay){
+    timers.clearTimeout(renewalTimer);
+    renewalTimer=timers.setTimeout(()=>{
+      if(disposed)return;
+      if(!wanted){renewalPending=true;return;}
+      if(connecting||pending){renewAfter(5000);return;}
+      renewalPending=false;void connect(true);
+    },Math.max(0,Math.min(delay,86400000)));
+  }
   const hasVideo=()=>delivered||(delivered=video.readyState>=3&&!video.paused);
   const status=text=>{if(!disposed)onStatus(text);};
   function fail(){
     if(disposed||unavailable)return;unavailable=true;wanted=false;starting=false;
-    timers.clearTimeout(startupTimer);timers.clearTimeout(pending);pending=undefined;engine?.stopLoad();
+    timers.clearTimeout(startupTimer);timers.clearTimeout(pending);timers.clearTimeout(renewalTimer);pending=undefined;engine?.stopLoad();
     status('Esta señal no está disponible. Prueba otra opción.');onUnavailable();
   }
   const listen=(name,fn)=>{video.addEventListener(name,fn);listeners.push([name,fn]);};
@@ -31,6 +41,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     if(disposed||connecting||pending||!wanted)return;
     if(reconnects>=(hasVideo()?5:1)){fail();return;}
     timers.clearTimeout(startupTimer);starting=false;
+    timers.clearTimeout(renewalTimer);
     status('Recuperando la señal…');stableSince=0;
     const delay=Math.min(1000*2**reconnects,8000);
     pending=timers.setTimeout(()=>{pending=undefined;reconnects++;void connect();},delay);
@@ -41,21 +52,27 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     engine.startLoad(video.currentTime||-1,true);
     status('Recuperando la conexión…');
   }
-  async function connect(){
+  async function connect(renewal=false){
     if(disposed||connecting)return;connecting=true;playAttempt++;timers.clearTimeout(startupTimer);
     request=new AbortController();
     const timeout=timers.setTimeout(()=>request?.abort(),hasVideo()?20000:15000);
-    status(sourceKey?'Recuperando la señal…':'Conectando…');
+    if(!renewal)status(sourceKey?'Recuperando la señal…':'Conectando…');
     try{
       // Retry the same provider first. Only sustained repeated failure moves to
       // another registered source for this channel.
       if(reconnects>=2&&sourceKey&&!persistent)excluded.add(sourceKey);
-      const source=await resolveSource([...excluded],request.signal,{refresh:reconnects>0});
+      const source=await resolveSource([...excluded],request.signal,{refresh:renewal||reconnects>0});
       if(disposed)return;
+      if(renewal&&!wanted){renewalPending=true;return;}
       if(source.transport==='embed'){
         wanted=false;starting=false;replacing=false;status('Esta señal no ofrece vídeo compatible. Prueba otra opción.');return;
       }
-      sourceKey=source.sourceKey||'';persistent=source.transport==='relay';replacing=true;starting=true;
+      if(renewal&&source.url===sourceURL){renewAfter(30000);return;}
+      sourceURL=source.url;tokenExpiry=Date.parse(source.expiresAt||'')||0;
+      if(Number.isFinite(source.renewInSeconds)&&source.renewInSeconds>0)renewAfter(source.renewInSeconds*1000);
+      sourceKey=source.sourceKey||'';persistent=['relay','direct'].includes(source.transport);
+      if(renewal&&engine){engine.loadSource(source.url);return;}
+      replacing=true;starting=true;
       engine?.destroy();engine=undefined;
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
@@ -91,6 +108,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
         video.dataset.engine='native';video.src=source.url;replacing=false;starting=false;requestPlay();
       }else{wanted=false;status('Este navegador no admite la reproducción.');}
     }catch(error){
+      if(!disposed&&renewal&&hasVideo()&&(!tokenExpiry||now()<tokenExpiry)){renewAfter(15000);return;}
       if(!disposed){if(error.code==='CHANNEL_UNAVAILABLE'||[404,410].includes(error.status)){fail();return;}status('No se pudo conectar con la señal. Reintentando…');connecting=false;reconnect();}
     }finally{timers.clearTimeout(timeout);connecting=false;}
   }
@@ -105,7 +123,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   });
   listen('playing',()=>{if(disposed)return;replacing=false;lastProgress=now();status('Reproduciendo');onProgress();onState();});
   listen('canplay',()=>{if(!disposed&&replacing&&!starting){replacing=false;requestPlay();}});
-  listen('play',()=>{if(disposed)return;wanted=true;starting=false;timers.clearTimeout(startupTimer);lastProgress=now();});
+  listen('play',()=>{if(disposed)return;wanted=true;starting=false;timers.clearTimeout(startupTimer);lastProgress=now();if(renewalPending){renewalPending=false;renewAfter(0);}});
   listen('pause',()=>{if(disposed||replacing||video.error||video.ended)return;wanted=false;timers.clearTimeout(pending);pending=undefined;status('En pausa');onState();});
   listen('waiting',()=>{if(!disposed&&wanted){stableSince=0;status('Cargando video…');}});
   listen('error',()=>{if(!disposed&&!replacing&&!engine)reconnect();});
@@ -132,6 +150,6 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   },1000);
   return {
     start:connect,
-    destroy(){disposed=true;playAttempt++;request?.abort();timers.clearTimeout(startupTimer);timers.clearTimeout(pending);timers.clearInterval(watchdog);listeners.forEach(([name,fn])=>video.removeEventListener(name,fn));engine?.destroy();},
+    destroy(){disposed=true;playAttempt++;request?.abort();timers.clearTimeout(renewalTimer);timers.clearTimeout(startupTimer);timers.clearTimeout(pending);timers.clearInterval(watchdog);listeners.forEach(([name,fn])=>video.removeEventListener(name,fn));engine?.destroy();},
   };
 }
