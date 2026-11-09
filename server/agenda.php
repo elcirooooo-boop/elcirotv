@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/futbolvivo.php';
+require_once __DIR__.'/streamxhd-agenda.php';
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
     if($slug==='premiere5')return ['https://tvf90.com/1.php?stream=premiere5'];
@@ -166,25 +167,25 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-fulbito-sandbox-v2';$old=cached_read($key);
+    $key='agenda-streamxhd-sandbox-v1';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>fulbito_channels(),'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streamxhd','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('fulbito-sandbox-v2',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
+        $feed=agenda_feed('streamxhd-sandbox-v1',fn()=>normalize_streamxhd_agenda(fetch_json('https://streamxhd.sbs/eventos.json')));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-classic-direct-v3');
+        $previous=$old??cached_read('agenda-fulbito-sandbox-v2');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
-        [$events,$channels]=combine_fulbito_sources($events,fulbito_channels());
-        foreach($events as &$event)foreach($event['signals'] as &$signal)$signal['provider']='fulbito';unset($event,$signal);
+        $channels=streamxhd_channels($events);
+        foreach($events as &$event)foreach($event['signals'] as &$signal)$signal['provider']='streamxhd';unset($event,$signal);
         foreach($channels as &$signal)$signal['provider']='fulbito';unset($signal);
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'fulbito','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
+        $data=['version'=>1,'provider'=>'streamxhd','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
     $hide=function($signal){if(($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo'],true)?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
+    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd'],true)?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$channels[$s['id']]=$hide($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }

@@ -1,5 +1,6 @@
 const normalize=value=>String(value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 export function estimatedDuration(event){
+  if(Number.isFinite(event.durationMinutes)&&event.durationMinutes>=5&&event.durationMinutes<=1440)return event.durationMinutes;
   const context=normalize(`${event.league||''} ${event.title||''}`);
   if(/\bf1\b|formula 1|formula uno/.test(context)){
     if(/sprint/.test(context)&&!/clasific|qualif/.test(context))return 75;
