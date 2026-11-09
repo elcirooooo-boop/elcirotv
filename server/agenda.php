@@ -52,8 +52,21 @@ function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=fals
         $legacy=[];
         try{$previous=(new DateTimeImmutable(str_contains($hour,'T')?$hour:$date.'T'.substr($hour?:'12:00:00',0,8).(isset($a['diary_description'])?'-05:00':'Z')))->getTimestamp();if($previous!==$start)$legacy[]=fingerprint(iso($previous).'|'.slugify($league).'|'.slugify($match));}catch(Throwable){}
         $events[]=['id'=>$id,'legacyIds'=>$legacy,'title'=>$match,'league'=>$league,'startsAt'=>iso($start),'time'=>$hour?(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'):'--:--','signals'=>alternatives($signals)];
-        if($publishedOnly)foreach(['homeLogo','awayLogo'] as $field)if(is_string($a[$field]??null)&&preg_match('~^https://a\.espncdn\.com/i/teamlogos/[^\s<>"\x27]+$~D',$a[$field]))$events[count($events)-1][$field]=$a[$field];
+        if($publishedOnly){
+            foreach(['homeLogo','awayLogo','logo'] as $field)if(is_string($a[$field]??null)&&agenda_logo_url($a[$field]))$events[count($events)-1][$field==='logo'?'leagueLogo':$field]=$a[$field];
+            if(is_string($a['sport']??null))$events[count($events)-1]['sport']=mb_substr($a['sport'],0,80);
+        }
     }return $events;
+}
+function agenda_logo_url(string $url): bool {
+    if(strlen($url)>2048)return false;$p=parse_url($url);
+    if(($p['scheme']??'')!=='https'||isset($p['user'])||isset($p['pass'])||isset($p['port']))return false;
+    return match($p['host']??''){
+        'a.espncdn.com'=>preg_match('~^/(?:i/teamlogos/|guid/)[^\s<>"\x27]+$~D',$p['path']??'')===1,
+        'upload.wikimedia.org'=>str_starts_with($p['path']??'','/wikipedia/'),
+        'r2.thesportsdb.com'=>str_starts_with($p['path']??'','/images/media/'),
+        default=>false
+    };
 }
 function fulbito_player_url(string $url): bool {
     $p=parse_url($url);parse_str($p['query']??'',$q);
@@ -153,12 +166,12 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-fulbito-sandbox-v1';$old=cached_read($key);
+    $key='agenda-fulbito-sandbox-v2';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>fulbito_channels(),'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('fulbito-sandbox-v1',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
+        $feed=agenda_feed('fulbito-sandbox-v2',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
         $previous=$old??cached_read('agenda-classic-direct-v3');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);

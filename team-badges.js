@@ -129,9 +129,17 @@ export function teamBadge(name, league='') {
   return index.get(lookup) || null;
 }
 
+export function suppliedLogo(value){
+  if(typeof value!=='string'||value.length>2048)return null;
+  try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;
+    if(u.hostname==='a.espncdn.com'&&/^\/(?:i\/teamlogos\/|guid\/)/.test(u.pathname)||u.hostname==='upload.wikimedia.org'&&u.pathname.startsWith('/wikipedia/')||u.hostname==='r2.thesportsdb.com'&&u.pathname.startsWith('/images/media/'))return u.href;
+  }catch{}return null;
+}
 export function competitionBadge(event){
-  const context=key(`${event.league||''} ${event.title||''}`);
+  const context=key(`${event.sport||''} ${event.league||''} ${event.title||''}`);
   for(const [pattern,label,logo] of [
+    [/\bwnba\b/,'WNBA','wnba'],[/\bnba\b/,'NBA','nba'],[/\bnfl\b/,'NFL','nfl'],[/\bnhl\b/,'NHL','nhl'],[/\bmlb\b/,'MLB','mlb'],[/\bf1\b|formula 1|formula uno/,'Fórmula 1','f1'],[/motogp|moto2|moto3/,'MotoGP','motorsport'],
+    [/cricket|\bipl\b|\bbbl\b/,'Críquet','cricket'],[/natacion|swimming/,'Natación','swimming'],[/atletismo|athletics|maraton|marathon/,'Atletismo','athletics'],[/esports|e sports|counter strike|league of legends|dota/,'Esports','esports'],[/wwe|wrestling|lucha libre/,'Lucha libre','wrestling'],[/nascar|indycar|automovilismo(?!.*formula)|motorsport(?!.*(?:motogp|formula))/,'Automovilismo','racing'],[/hockey(?!.*nhl)/,'Hockey','hockey'],[/softball|softbol/,'Sóftbol','baseball'],[/beisbol|baseball/,'Béisbol','baseball'],
     [/motogp|moto2|moto3/,'MotoGP','motorsport'],[/rugby|six nations|nations championship/,'Rugby','rugby'],
     [/ncaa.*football|college football/,'NCAA Football','american-football'],
     [/voleibol|volleyball/,'Voleibol','volleyball'],[/balonmano|handball/,'Balonmano','handball'],
@@ -149,11 +157,11 @@ export function competitionBadge(event){
     [/eerste divisie/,'Eerste Divisie','eerstedivisie'],[/eredivisie/,'Eredivisie','eredivisie'],
     [/ligue 1/,'Ligue 1','ligue1'],[/serie a/,'Serie A','seriea'],[/liga profesional/,'Liga Profesional Argentina','argentina'],
     [/brasileirao/,'Brasileirão','brasil'],[/liga mx/,'Liga MX','ligamx'],[/primera a/,'Primera A','colombia'],
-  ])if(pattern.test(context))return {label,logo:`/logos/${logo === 'motorsport' ? 'motogp' : logo}.${['motorsport','rugby','american-football','volleyball','handball','polo','cycling'].includes(logo)?'svg':'png'}`,individual:/f1|atp|tennis|golf|ufc|boxing|motorsport|polo|cycling/.test(logo)};
-  return {label:event.league&&event.league!=='Deportes'?event.league:'Deportes',logo:matchTeams(event).length?'/logos/soccer.png':'/logos/sports.svg',individual:false};
+  ])if(pattern.test(context))return {label,logo:`/logos/${logo === 'motorsport' ? 'motogp' : logo}.${['motorsport','rugby','american-football','volleyball','handball','polo','cycling','cricket','swimming','athletics','esports','wrestling','racing','hockey','baseball'].includes(logo)?'svg':'png'}`,individual:/f1|atp|tennis|golf|ufc|boxing|motorsport|polo|cycling|racing|swimming|athletics|wrestling/.test(logo)};
+  return {label:event.league&&event.league!=='Deportes'?event.league:'Deportes',logo:suppliedLogo(event.leagueLogo)||(matchTeams(event).length?'/logos/soccer.png':'/logos/sports.svg'),individual:false};
 }
 function competitionMarkup(competition){
-  return `<span class="match-badges competition-badge" aria-hidden="true" title="${escape(competition.label)}">${competition.logo?`<img data-team-badge src="${escape(competition.logo)}" alt="" width="64" height="40" loading="lazy"><span class="team-initials" hidden>DEP</span>`:''}<span class="competition-label">${escape(competition.label)}</span></span>`;
+  return `<span class="match-badges competition-badge" aria-hidden="true" title="${escape(competition.label)}">${competition.logo?`<img data-team-badge data-fallback="/logos/sports.svg" src="${escape(competition.logo)}" alt="" width="64" height="40" loading="lazy"><span class="team-initials" hidden>DEP</span>`:''}<span class="competition-label">${escape(competition.label)}</span></span>`;
 }
 export function countryCode(name){
   const country=key(name).replace(/^seleccion (?:nacional )?(?:de )?/,'').replace(/\b(?:sub|u)\s*\d{1,2}\b/g,'').replace(/\b(?:femenil|femenino|femenina|women|womens|masculino|masculina)\b/g,'').replace(/\s+/g,' ').trim();
@@ -170,11 +178,13 @@ export function teamBadges(event) {
   if(!names.length||competition.individual)return competitionMarkup(competition);
   const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
   const badge = (name,index) => {
-    const team = teamBadge(name,league);
+    const team = teamBadge(name,(league||'')+' '+(event.sport||''));
     const initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toLocaleUpperCase();
-    const supplied=event[index===0?'homeLogo':'awayLogo'];
-    const logo = typeof supplied==='string'&&/^https:\/\/a\.espncdn\.com\/i\/teamlogos\/[^\s<>"']+$/.test(supplied)?supplied:team && (/^https:\/\/a\.espncdn\.com\/(?:i\/teamlogos\/|guid\/[a-f0-9-]+\/logos\/)/.test(team.logo)||/^\/logos\/teams\/[a-z0-9-]+\.png$/.test(team.logo)) ? team.logo : competition.logo;
-    return `<span class="team-badge" title="${escape(team?name:competition.label)}">${logo?`<img data-team-badge data-fallback="${escape(competition.logo)}" src="${escape(logo)}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="team-initials"${logo?' hidden':''}>${escape(initials)}</span></span>`;
+    const supplied=suppliedLogo(event[index===0?'homeLogo':'awayLogo']);
+    const known=team&&(suppliedLogo(team.logo)||(/^\/logos\/teams\/[a-z0-9-]+\.png$/.test(team.logo)?team.logo:null));
+    const logo=supplied||known||competition.logo;
+    const fallback=known&&known!==logo?known:competition.logo;
+    return `<span class="team-badge" title="${escape(name)}">${logo?`<img data-team-badge data-fallback="${escape(fallback)}" data-sport-fallback="${escape(competition.logo)}" src="${escape(logo)}" alt="" width="32" height="32" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="team-initials"${logo?' hidden':''}>${escape(initials)}</span></span>`;
   };
   return `<span class="match-badges" aria-hidden="true">${badge(names[0],0)}<span class="badge-versus">vs</span>${badge(names[1],1)}</span>`;
 }
@@ -183,6 +193,7 @@ export function handleBadgeError(event) {
   const image = event.target;
   if(!image?.matches?.('img[data-team-badge]'))return;
   if(image.dataset?.fallback&&image.getAttribute('src')!==image.dataset.fallback){image.src=image.dataset.fallback;delete image.dataset.fallback;return;}
+  if(image.dataset?.sportFallback&&image.getAttribute('src')!==image.dataset.sportFallback){image.src=image.dataset.sportFallback;delete image.dataset.sportFallback;return;}
   const fallback = image.nextElementSibling;
   if(fallback)fallback.hidden = false;
   image.remove();
