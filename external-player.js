@@ -27,6 +27,15 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
   frame.className='external-player';
   container.replaceChildren(frame);
+  const addShield=()=>{
+    const old=container.querySelector('.ad-shield');if(old)old.remove();
+    const shield=document.createElement('div');
+    shield.className='ad-shield';
+    shield.style.cssText='position:absolute;inset:0;z-index:10;cursor:pointer;background:transparent;';
+    shield.title='Toca para reproducir';
+    shield.addEventListener('click',(e)=>{e.stopPropagation();shield.remove();});
+    container.appendChild(shield);
+  };
   const open=()=>{if(disposed)return;const url=new URL(urls[index]);
     // These published embeds require a standard cross-origin iframe.
     // Keep browser same-origin isolation and never change CSP or frame policies.
@@ -37,7 +46,7 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
     } else {
       frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
     }
-    frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
+    frame.src=urls[index];addShield();onChange({url:urls[index],index,total:urls.length});};
   open();
   return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';frame.remove();}};
 }

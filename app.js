@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261109k';
+import {createExternalPlayer} from './external-player.js?v=20261109L';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText} from './schedule.js';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261108b';

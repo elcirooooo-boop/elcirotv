@@ -6,9 +6,13 @@ function external_playback(array $signal): array {
     $pages=json_decode(file_get_contents(__DIR__.'/tvf90-players.json'),true)??[];
     $published=[];foreach($sources as $source){$url=$source['url'];$parts=parse_url($url);parse_str($parts['query']??'',$query);
         $stream=$query['stream']??'';
-        if((($parts['host']??'')==='tvf90.com'||($parts['host']??'')==='la18hd.su')&&$stream!==''){
-            $workerUrl='https://elcirotv.elcirooooo.workers.dev/player?stream='.rawurlencode($stream);
-            $published[$workerUrl]=['url'=>$workerUrl,'sourceKey'=>fingerprint($workerUrl)];
+        if(($parts['host']??'')==='tvf90.com'&&$stream!==''){
+            $targetUrl='https://tvf90.com/5.php?stream='.rawurlencode($stream);
+            $published[$targetUrl]=['url'=>$targetUrl,'sourceKey'=>fingerprint($targetUrl)];
+        }
+        elseif(($parts['host']??'')==='la18hd.su'&&$stream!==''){
+            $targetUrl='https://la18hd.su/vivo/canal.php?stream='.rawurlencode($stream);
+            $published[$targetUrl]=['url'=>$targetUrl,'sourceKey'=>fingerprint($targetUrl)];
         }
         else $published[$url]=$source;
     }
