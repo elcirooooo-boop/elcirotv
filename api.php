@@ -5,13 +5,12 @@ require __DIR__.'/server/common.php';
 require __DIR__.'/server/network.php';
 require __DIR__.'/server/agenda.php';
 require __DIR__.'/server/playback.php';
-require __DIR__.'/server/direct-playback.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
 if(!is_string($action)||!in_array($action,['agenda','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
 $method=$action==='presence'?'POST':'GET';if(($_SERVER['REQUEST_METHOD']??'')!==$method){header('Allow: '.$method);respond(['error'=>'Método no permitido.'],405);}
-if($action==='media')respond(['error'=>'Esta señal se reproduce directamente sin consumo del servidor.'],410);
+if($action==='media')respond(['error'=>'Usa el reproductor externo. Recarga la página.'],410);
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
@@ -21,11 +20,7 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
-        try {
-            respond(direct_playback($signal,($_GET['refresh']??'')==='1'));
-        } catch(Throwable) {
-            respond(external_playback($signal));
-        }
+        respond(external_playback($signal));
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';
