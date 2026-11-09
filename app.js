@@ -1,3 +1,4 @@
+import {createExternalPlayer} from './external-player.js?v=20261109d';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {createLivePlayer} from './live-player.js?v=20261109a';
 import {matchSchedule,scheduleText} from './schedule.js';
@@ -11,7 +12,7 @@ document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,player,playerFullscreen;
+let playerGeneration=0,player,playerFullscreen,externalActive=false;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,video,selected='',currentMatch='',tracking,counts=null,lastProgress=0,presenceQueue=Promise.resolve();
@@ -22,13 +23,13 @@ const preparedPlayback=createPreparedPlayback((id,{excluded,refresh,signal})=>ap
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
-  const payload={session,match:currentMatch,playing:!!video&&!video.paused&&!video.ended&&video.readyState>=3&&Date.now()-lastProgress<8000};
+  const payload={session,match:currentMatch,playing:externalActive?!document.hidden:!!video&&!video.paused&&!video.ended&&video.readyState>=3&&Date.now()-lastProgress<8000};
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
   return presenceQueue;
 }
-function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Espectadores activos aproximados">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
+function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Personas con la transmisión abierta, aproximadamente">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
+function stop(){externalActive=false;playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;lastProgress=0;if(video){video.pause();video.removeAttribute('src');video.load();video=null;}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
@@ -40,9 +41,26 @@ async function play(signal,signals,{tried=new Set(),refresh=false}={}){
   updateMatchShare(signal);
   document.querySelector('#videoSection').hidden=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
-  playerFullscreen=createPlayerFullscreen({section:document.querySelector('#videoSection'),button:document.querySelector('#fullscreen')});
+  if(!phpAPI)playerFullscreen=createPlayerFullscreen({section:document.querySelector('#videoSection'),button:document.querySelector('#fullscreen')});
   const status=document.querySelector('#signalStatus');
   const active=()=>playerGeneration===generation&&selected===identity;
+  if(phpAPI){
+    status.textContent='Cargando reproductor del proveedor…';
+    document.querySelector('#providerNext').hidden=true;
+    document.querySelector('#retry').onclick=()=>play(signal,signals);
+
+    try{
+      const source=await preparedPlayback.read(identity);if(!active())return;
+      if(source.transport!=='embed')throw Error('Recarga la página para cargar el reproductor externo.');
+      const next=document.querySelector('#providerNext');
+      player=createExternalPlayer({container:document.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,openInNewTab:source.openInNewTab,onChange:({index,total})=>{next.hidden=total<2;status.textContent=source.openInNewTab?'Abre la transmisión en el reproductor del proveedor.':signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. Toca reproducir dentro del vídeo.';}});
+      next.onclick=()=>player?.next();
+      playerFullscreen=createPlayerFullscreen({section:document.querySelector('#videoSection'),button:document.querySelector('#fullscreen')});
+      externalActive=true;void heartbeat().then(refreshViewers);
+    }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
+    if(active())document.querySelector('#videoSection').scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
   video=document.querySelector('video');
   player=createLivePlayer({
     video,Hls:window.Hls,
@@ -63,7 +81,7 @@ async function play(signal,signals,{tried=new Set(),refresh=false}={}){
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><video controls playsinline preload="none" aria-label="Reproductor del partido"></video></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button>${phpAPI?'<button id="providerNext" hidden>Otra opción del proveedor</button>':''}</div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
