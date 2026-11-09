@@ -5,21 +5,24 @@ require __DIR__.'/server/common.php';
 require __DIR__.'/server/network.php';
 require __DIR__.'/server/agenda.php';
 require __DIR__.'/server/playback.php';
+require __DIR__.'/server/direct-playback.php';
+require __DIR__.'/server/published-direct.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
-if(!is_string($action)||!in_array($action,['agenda','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
+if(!is_string($action)||!in_array($action,['agenda','play','direct','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
 $method=$action==='presence'?'POST':'GET';if(($_SERVER['REQUEST_METHOD']??'')!==$method){header('Allow: '.$method);respond(['error'=>'Método no permitido.'],405);}
 if($action==='media')respond(['error'=>'Usa el reproductor externo. Recarga la página.'],410);
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
-    if($action==='play'){
+    if(in_array($action,['play','direct'],true)){
         $id=is_string($_GET['source']??null)?$_GET['source']:'';$signal=null;
-        $current=agenda();foreach($current['channels']??[] as $s)if($s['id']===$id){$signal=$s;break;}
+        $current=$action==='direct'?published_direct_agenda(agenda()):agenda();foreach($current['channels']??[] as $s)if($s['id']===$id){$signal=$s;break;}
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
+        if($action==='direct'){if(!$mapped=published_direct_signal($signal))throw new RuntimeException('CHANNEL_UNAVAILABLE');respond(direct_playback($mapped,($_GET['refresh']??'')==='1'));}
         respond(external_playback($signal));
     }
     if($action==='presence'){
@@ -37,6 +40,7 @@ try {
         cached_write('viewer-counts',['until'=>time()+5,'counts'=>$counts]);respond(['counts'=>(object)$counts]);
     }
 }catch(Throwable $error){
+    if($error->getMessage()==='DIRECT_BUSY'){header('Retry-After: 2');respond(['error'=>'Preparando el enlace del canal. Reintenta en unos segundos.'],503);}
     if($error->getMessage()==='MEDIA_BUSY'){header('Retry-After: 1');respond(['error'=>'La señal se está preparando. Reintenta.'],503);}
     error_log('El Ciro PHP: '.get_class($error).' '.$error->getMessage());
     $response=['error'=>$action==='agenda'?'No se pudo actualizar la agenda. Intenta de nuevo.':'La señal no está disponible. Prueba otra opción.'];
