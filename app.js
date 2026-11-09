@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261109g';
+import {createExternalPlayer} from './external-player.js?v=20261109h';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {createLivePlayer} from './live-player.js?v=20261109a';
 import {matchSchedule,scheduleText} from './schedule.js';
