@@ -1,22 +1,10 @@
 <?php
 declare(strict_types=1);
 function external_playback(array $signal): array {
-    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){$url=$source['url'];$allowed=match($signal['provider']??''){'classic'=>classic_player_url($url),'futbolvivo'=>futbolvivo_player_url($url),default=>fulbito_player_url($url)};if($allowed)$sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];}
-    // Use the provider's published entry page; its inner player expects that referrer.
-    $pages=json_decode(file_get_contents(__DIR__.'/tvf90-players.json'),true)??[];
-    $published=[];foreach($sources as $source){$url=$source['url'];$parts=parse_url($url);parse_str($parts['query']??'',$query);
-        $stream=$query['stream']??'';
-        if(($parts['host']??'')==='tvf90.com'&&$stream!==''){
-            $targetUrl='https://tvf90.com/5.php?stream='.rawurlencode($stream);
-            $published[$targetUrl]=['url'=>$targetUrl,'sourceKey'=>fingerprint($targetUrl)];
-        }
-        elseif(($parts['host']??'')==='la18hd.su'&&$stream!==''){
-            $targetUrl='https://la18hd.su/vivo/canal.php?stream='.rawurlencode($stream);
-            $published[$targetUrl]=['url'=>$targetUrl,'sourceKey'=>fingerprint($targetUrl)];
-        }
-        else $published[$url]=$source;
+    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+        if(!fulbito_player_url($source['url']))continue;$url=fulbito_canonical($source['url']);
+        $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
     }
-    $sources=$published;
     if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
     return ['transport'=>'embed','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
 }
