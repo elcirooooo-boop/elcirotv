@@ -2,13 +2,11 @@
 declare(strict_types=1);
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){$url=$source['url'];$allowed=match($signal['provider']??''){'classic'=>classic_player_url($url),'futbolvivo'=>futbolvivo_player_url($url),default=>fulbito_player_url($url)};if($allowed)$sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];}
-    // Route directly to /5.php to bypass the wrapper ads
+    // Use the provider's published entry page; its inner player expects that referrer.
+    $pages=json_decode(file_get_contents(__DIR__.'/tvf90-players.json'),true)??[];
     $published=[];foreach($sources as $source){$url=$source['url'];$parts=parse_url($url);parse_str($parts['query']??'',$query);
-        $stream=(string)($query['stream']??'');
-        if(in_array($parts['host']??'',['tvf90.com','futbollibre.ch'],true)&&$stream!==''){
-            $page='https://tvf90.com/5.php?stream='.$stream;
-            $published[$page]=['url'=>$page,'sourceKey'=>fingerprint($page)];
-        }else $published[$url]=$source;
+        if(($parts['host']??'')==='tvf90.com'&&isset($pages[$query['stream']??''])){$page=$pages[$query['stream']];$published[$page]=['url'=>$page,'sourceKey'=>fingerprint($page)];}
+        else $published[$url]=$source;
     }
     $sources=$published;
     if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);

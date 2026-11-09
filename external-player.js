@@ -7,10 +7,6 @@ export function providerPlayerURL(value){
   const classic=url.hostname==='la18hd.su'&&url.pathname==='/vivo/canal.php'&&/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||'');
   const futbolvivo=classic||latin||direct||url.hostname==='redirectus.net'&&page&&url.searchParams.get('p')===page&&url.searchParams.get('d')==='redirectus.net'&&/^[1-9][0-9]{0,12}$/.test(url.searchParams.get(page==='soccer'?'m':'id')||'');
   if(url.protocol!=='https:'||url.username||url.password||url.port||!legacy&&!futbolvivo)throw Error('El reproductor del proveedor no es válido.');
-  if(url.hostname==='tvf90.com'||url.hostname==='futbollibre.ch'){
-    const stream=url.searchParams.get('stream');
-    if(stream)return `https://tvf90.com/5.php?stream=${encodeURIComponent(stream)}`;
-  }
   return url.href;
 }
 export function createExternalPlayer({container,sources,name,openInNewTab=false,onChange=()=>{},document=globalThis.document}){
@@ -26,20 +22,16 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   frame.title='Reproductor del proveedor · '+name;
   frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
   frame.setAttribute('allowfullscreen','');
-  frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation allow-encrypted-media');
+  frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
   frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
   frame.className='external-player';
-
   container.replaceChildren(frame);
-  const open=()=>{
-    if(disposed)return;
-    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation allow-encrypted-media');
-    frame.src=urls[index];
-    onChange({url:urls[index],index,total:urls.length});
-  };
+  const open=()=>{if(disposed)return;const url=new URL(urls[index]);
+    // These published embeds require a standard cross-origin iframe.
+    // Keep browser same-origin isolation and never change CSP or frame policies.
+    if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname))frame.removeAttribute('sandbox');
+    else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
+    frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
   open();
-  return {
-    next(){if(disposed)return;index=(index+1)%urls.length;open();},
-    destroy(){disposed=true;frame.src='about:blank';frame.remove();}
-  };
+  return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';frame.remove();}};
 }
