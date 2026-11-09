@@ -5,7 +5,11 @@ function external_playback(array $signal): array {
     // Use the provider's published entry page; its inner player expects that referrer.
     $pages=json_decode(file_get_contents(__DIR__.'/tvf90-players.json'),true)??[];
     $published=[];foreach($sources as $source){$url=$source['url'];$parts=parse_url($url);parse_str($parts['query']??'',$query);
-        if(($parts['host']??'')==='tvf90.com'&&isset($pages[$query['stream']??''])){$page=$pages[$query['stream']];$published[$page]=['url'=>$page,'sourceKey'=>fingerprint($page)];}
+        $stream=$query['stream']??'';
+        if((($parts['host']??'')==='tvf90.com'||($parts['host']??'')==='la18hd.su')&&$stream!==''){
+            $workerUrl='https://elcirotv.elcirooooo.workers.dev/player?stream='.rawurlencode($stream);
+            $published[$workerUrl]=['url'=>$workerUrl,'sourceKey'=>fingerprint($workerUrl)];
+        }
         else $published[$url]=$source;
     }
     $sources=$published;

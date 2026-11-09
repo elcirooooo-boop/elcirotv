@@ -1,5 +1,6 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
+  if(url.hostname==='elcirotv.elcirooooo.workers.dev'&&url.pathname==='/player'&&/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.href;
   const legacy=['streamxhd.sbs','stream-xhd.com'].includes(url.hostname)&&url.pathname==='/live1.php'&&/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||'');
   const page={'/latin/us.html':'us','/latin/latin.html':'latin','/latin/soccer.html':'soccer'}[url.pathname];
   const direct=url.hostname==='streamec.st'&&/^\/embed\/ch[0-9]{1,8}\.php$/.test(url.pathname)||url.hostname==='redirectus.net'&&(url.pathname==='/streameast.html'&&/^[1-9][0-9]{0,12}$/.test(url.searchParams.get('id')||'')||url.pathname==='/streame.html'&&/^sc-ch[0-9]{1,8}$/.test(url.searchParams.get('key')||''));
@@ -29,8 +30,13 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   const open=()=>{if(disposed)return;const url=new URL(urls[index]);
     // These published embeds require a standard cross-origin iframe.
     // Keep browser same-origin isolation and never change CSP or frame policies.
-    if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname))frame.removeAttribute('sandbox');
-    else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
+    if(url.hostname==='elcirotv.elcirooooo.workers.dev'){
+      frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    } else if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname)){
+      frame.removeAttribute('sandbox');
+    } else {
+      frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
+    }
     frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
   open();
   return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';frame.remove();}};
