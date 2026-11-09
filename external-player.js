@@ -25,13 +25,26 @@ export function createExternalPlayer({container,sources,name,openInNewTab=false,
   frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
   frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');
   frame.className='external-player';
-  container.replaceChildren(frame);
+
+  const shield=document.createElement('div');
+  shield.className='ad-shield';
+  shield.style.cssText='position:absolute;inset:0;z-index:20;background:rgba(0,0,0,0.01);cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-tap-highlight-color:transparent;';
+  const shieldLabel=document.createElement('span');
+  shieldLabel.style.cssText='background:rgba(14,165,233,0.92);color:#ffffff;padding:8px 18px;border-radius:24px;font-weight:600;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,0.5);pointer-events:none;transition:opacity 0.2s;';
+  shieldLabel.textContent='🛡️ Toca para activar el reproductor';
+  shield.appendChild(shieldLabel);
+  shield.onclick=(e)=>{e.preventDefault();e.stopPropagation();shield.remove();};
+
+  container.style.position='relative';
+  container.replaceChildren(frame,shield);
   const open=()=>{if(disposed)return;const url=new URL(urls[index]);
     // These published embeds require a standard cross-origin iframe.
     // Keep browser same-origin isolation and never change CSP or frame policies.
     if(['streamec.st','tvf90.com','la18hd.su','tv-90.com','futbollibre.ch','redirectus.net'].includes(url.hostname))frame.removeAttribute('sandbox');
     else frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-presentation allow-popups');
-    frame.src=urls[index];onChange({url:urls[index],index,total:urls.length});};
+    frame.src=urls[index];
+    if(!shield.isConnected)container.appendChild(shield);
+    onChange({url:urls[index],index,total:urls.length});};
   open();
-  return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';frame.remove();}};
+  return {next(){if(disposed)return;index=(index+1)%urls.length;open();},destroy(){disposed=true;frame.src='about:blank';shield.remove();frame.remove();}};
 }
