@@ -20,3 +20,8 @@ export function scheduleDay(event){
   const date=new Date(event.startsAt);if(!Number.isFinite(date.getTime()))return {key:'unknown',label:'Fecha por confirmar'};
   return {key:new Intl.DateTimeFormat('en-CA',{timeZone:'America/Caracas',year:'numeric',month:'2-digit',day:'2-digit'}).format(date),label:new Intl.DateTimeFormat('es',{timeZone:'America/Caracas',weekday:'long',day:'numeric',month:'long'}).format(date)};
 }
+
+export function currentAndUpcomingEvents(events,now=Date.now()){
+  const today=scheduleDay({startsAt:new Date(now).toISOString()}).key;
+  return events.filter(event=>{const day=scheduleDay(event).key;return day!=='unknown'&&day>=today;});
+}
