@@ -24,7 +24,18 @@ function normalize_streamxhd_agenda(array $payload): array {
     }
     return $events;
 }
-function streamxhd_channels(array $events): array {
-    $channels=[];foreach($events as $event)foreach($event['signals'] as $signal)$channels[$signal['id']]=$signal;
+function streamxhd_channels(array $events,array $permanentChannels=[]): array {
+    $channels=[];
+    foreach($permanentChannels as $signal){
+        if(!is_string($signal['url']??null)||!fulbito_player_url($signal['url']))continue;
+        $url=fulbito_canonical($signal['url']);
+        $signal['id']=fulbito_signal_id($url);
+        $signal['url']=$url;
+        $signal['sources']=[['url'=>$url]];
+        $signal['provider']='streamxhd';
+        $channels[$signal['id']]=$signal;
+    }
+    foreach($events as $event)foreach($event['signals'] as $signal)$channels[$signal['id']]??=$signal;
+    uasort($channels,fn($left,$right)=>strnatcasecmp($left['name'],$right['name']));
     return array_values($channels);
 }
