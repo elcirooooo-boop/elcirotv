@@ -167,16 +167,16 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-streamxhd-sandbox-v2';$old=cached_read($key);
+    $key='agenda-streamxhd-only-v3';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streamxhd','day'=>today(),'events'=>[],'channels'=>streamxhd_channels([],fulbito_channels()),'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streamxhd','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
         $feed=agenda_feed('streamxhd-sandbox-v1',fn()=>normalize_streamxhd_agenda(fetch_json('https://streamxhd.sbs/eventos.json')));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-fulbito-sandbox-v2');
+        $previous=$old??cached_read('agenda-streamxhd-sandbox-v2');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
-        $channels=streamxhd_channels($events,fulbito_channels());
+        $channels=streamxhd_channels($events);
         foreach($events as &$event)foreach($event['signals'] as &$signal)$signal['provider']='streamxhd';unset($event,$signal);
         foreach($channels as &$signal)$signal['provider']='streamxhd';unset($signal);
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
