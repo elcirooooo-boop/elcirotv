@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261109n';
+import {createExternalPlayer} from './external-player.js?v=20261111a';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay} from './schedule.js?v=20261110a';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
@@ -42,12 +42,12 @@ async function play(signal,signals,{refresh=false}={}){
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
   status.textContent='Cargando reproductor externo del proveedor…';
-  document.querySelector('#retry').onclick=()=>play(signal,signals,{refresh:true});
+  document.querySelector('#retry').onclick=()=>player&&active()?player.reload():play(signal,signals,{refresh:true});
   try{
     const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
     if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
-    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,openInNewTab:false,onChange:({index,total})=>{
-      next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. Toca reproducir dentro del vídeo.';
+    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
+      next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+' Si se detiene, pulsa Reintentar señal.';
     }});
     next.onclick=()=>player?.next();
     playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
