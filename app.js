@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261111a';
+import {createExternalPlayer} from './external-player.js?v=20261111b';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay} from './schedule.js?v=20261110a';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
@@ -39,6 +39,7 @@ async function play(signal,signals,{refresh=false}={}){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
   section.hidden=false;next.hidden=true;
+  const compatibilityButton=document.querySelector('#compatibility');compatibilityButton.hidden=true;let compatibilityMode=false;
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
   status.textContent='Cargando reproductor externo del proveedor…';
@@ -46,9 +47,15 @@ async function play(signal,signals,{refresh=false}={}){
   try{
     const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
     if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
-    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
-      next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+' Si se detiene, pulsa Reintentar señal.';
+    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason,compatibility})=>{
+      compatibilityMode=compatibility;compatibilityButton.hidden=false;compatibilityButton.textContent=compatibility?'Volver al modo protegido':'Probar modo compatible';
+      next.hidden=total<2;status.textContent=(compatibility?'Modo compatible: el proveedor puede abrir anuncios o redirigirte. ':'')+signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+' Si se detiene, pulsa Reintentar señal.';
     }});
+    compatibilityButton.onclick=()=>{
+      if(!active()||!player)return;
+      if(!compatibilityMode&&!window.confirm('Este modo desactiva el bloqueo del reproductor externo para comprobar la compatibilidad en tu móvil. El proveedor podrá abrir publicidad o redirigir la página. ¿Quieres probarlo?'))return;
+      player.setCompatibility(!compatibilityMode);
+    };
     next.onclick=()=>player?.next();
     playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
     externalActive=true;void heartbeat().then(refreshViewers);
@@ -57,7 +64,7 @@ async function play(signal,signals,{refresh=false}={}){
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button><button id="providerNext" hidden>Otra opción del proveedor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="retry">Reintentar señal</button><button id="fullscreen">Pantalla completa</button><button id="compatibility" hidden>Probar modo compatible</button><button id="providerNext" hidden>Otra opción del proveedor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);

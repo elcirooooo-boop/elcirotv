@@ -20,13 +20,16 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
 export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},document=globalThis.document,window=globalThis.window}){
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
-  let index=0,disposed=false;
-  const frame=document.createElement('iframe');frame.title='Reproductor de StreamXHD · '+name;
-  frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
-  frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
-  frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
-  container.replaceChildren(frame);
-  const open=(reason='open')=>{if(disposed)return;frame.src=urls[index];onChange({url:urls[index],index,total:urls.length,reason});};open();
+  let index=0,disposed=false,compatibility=false,frame;
+  const mount=()=>{
+    if(frame){frame.src='about:blank';frame.remove();}
+    frame=document.createElement('iframe');frame.title='Reproductor de StreamXHD · '+name;
+    if(!compatibility)frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
+    frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
+    container.replaceChildren(frame);
+  };
+  const open=(reason='open')=>{if(disposed)return;frame.src=urls[index];onChange({url:urls[index],index,total:urls.length,reason,compatibility});};mount();open();
   const connection=watchPlayerConnection({window,document,onOffline,onReconnect:()=>open('reconnect')});
-  return {reload(){if(disposed)return;connection.reset();open('retry');},next(){if(disposed)return;connection.reset();index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();frame.src='about:blank';frame.remove();}};
+  return {setCompatibility(enabled){if(disposed||compatibility===(enabled===true))return;compatibility=enabled===true;connection.reset();mount();open('mode');},reload(){if(disposed)return;connection.reset();open('retry');},next(){if(disposed)return;connection.reset();index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();frame.src='about:blank';frame.remove();}};
 }
