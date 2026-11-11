@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
+require_once __DIR__.'/damitv-agenda.php';
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
     if($slug==='premiere5')return ['https://tvf90.com/1.php?stream=premiere5'];
@@ -167,25 +168,27 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-streamxhd-only-v3';$old=cached_read($key);
-    if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $key='agenda-damitv-v1';$old=cached_read($key);
+    if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streamxhd','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('streamxhd-sandbox-v1',fn()=>normalize_streamxhd_agenda(fetch_json('https://streamxhd.sbs/eventos.json')));
-        if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-streamxhd-sandbox-v2');
-        $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
-        $channels=streamxhd_channels($events);
-        foreach($events as &$event)foreach($event['signals'] as &$signal)$signal['provider']='streamxhd';unset($event,$signal);
-        foreach($channels as &$signal)$signal['provider']='streamxhd';unset($signal);
+        try{$feed=normalize_damitv_agenda(fetch_json('https://ondemand.st/papi/api/streams'));}
+        catch(Throwable $error){
+            if($old&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
+            error_log('El Ciro DAMITV: '.$error->getMessage());
+            return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];
+        }
+        $previous=$old??cached_read('agenda-streamxhd-only-v3');
+        $events=retain_agenda_links($feed['events'],$previous['events']??[]);
+        $channels=$feed['channels'];
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'streamxhd','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
+        $data=['version'=>1,'provider'=>'damitv','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write($key,$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
     $hide=function($signal){if(($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd'],true)?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
+    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv'],true)?($data['channels']??[]):catalog_signals() as $s)$channels[$s['id']]=$hide($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$channels[$s['id']]??=$hide($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }
