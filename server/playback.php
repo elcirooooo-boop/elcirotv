@@ -2,7 +2,9 @@
 declare(strict_types=1);
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
-        if(!fulbito_player_url($source['url']))continue;$url=fulbito_canonical($source['url']);
+        if(zlive_player_url($source['url']))$url=$source['url'];
+        elseif(fulbito_player_url($source['url']))$url=fulbito_canonical($source['url']);
+        else continue;
         $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
     }
     if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);

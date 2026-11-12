@@ -1,5 +1,5 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261112b';
-import {createExternalPlayer} from './external-player.js?v=20261112d';
+import {createExternalPlayer} from './external-player.js?v=20261112f';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay} from './schedule.js?v=20261110a';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
@@ -90,7 +90,7 @@ function chooser(event,signals){
   main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
 }
 function listing(channels=false){
-  main.innerHTML=intro(channels?'Tus canales.':'Tu próximo partido.',channels?'Todas las señales publicadas en la agenda.':'Elige tu partido, selecciona un canal y disfruta.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido o canal" placeholder="${channels?'Buscar canal…':'Equipo, liga o canal…'}"></label>${channels?'':'<select id="league" aria-label="Filtrar por competición"><option value="">Todas las competiciones</option>'+[...new Set(data.events.map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('')+'</select>'}</div><div class="section-heading"><h2>${channels?'Canales':'Partidos disponibles'}</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
+  main.innerHTML=intro(channels?'Tus canales.':'Tu próximo partido.',channels?'Las señales de los partidos y el catálogo de canales disponibles.':'Elige tu partido, selecciona un canal y disfruta.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido o canal" placeholder="${channels?'Buscar canal…':'Equipo, liga o canal…'}"></label>${channels?'':'<select id="league" aria-label="Filtrar por competición"><option value="">Todas las competiciones</option>'+[...new Set(data.events.map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('')+'</select>'}</div><div class="section-heading"><h2>${channels?'Canales':'Partidos disponibles'}</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
   const update=()=>{
     const term=main.querySelector('#search').value.toLocaleLowerCase(),league=main.querySelector('#league')?.value;
     const values=channels?data.channels.filter(c=>c.name.toLowerCase().includes(term)):chronologicalEvents(data.events.filter(e=>(!league||e.league===league)&&`${e.title} ${e.league} ${e.signals.map(s=>s.name).join(' ')}`.toLowerCase().includes(term)));

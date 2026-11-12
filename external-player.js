@@ -1,5 +1,6 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
+  if(url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&url.hostname==='zlive.st'&&!url.search&&!url.hash&&/^\/embed\/[a-zA-Z0-9_-]{1,160}$/.test(url.pathname))return url.href;
   if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st'].includes(url.hostname)||url.pathname!=='/live1.php'||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
   return 'https://streamxhd.sbs/live1.php?stream='+encodeURIComponent(url.searchParams.get('stream'));
 }
@@ -23,7 +24,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   let index=0,disposed=false,frame;
   const mount=()=>{
     if(frame){frame.src='about:blank';frame.remove();}
-    frame=document.createElement('iframe');frame.title='Reproductor de StreamXHD · '+name;
+    frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
     frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
