@@ -3,7 +3,11 @@ declare(strict_types=1);
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
         if(embedlatam_player_url($source['url']))$url=$source['url'];
-        elseif(fulbito_player_url($source['url']))$url=fulbito_canonical($source['url']);
+        elseif(fulbito_player_url($source['url'])){
+            $url=fulbito_canonical($source['url']);
+            $automatic=str_replace('/live1.php?', '/live2.php?', $url);
+            $sources[$automatic]=['url'=>$automatic,'sourceKey'=>fingerprint($automatic)];
+        }
         else continue;
         $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
     }

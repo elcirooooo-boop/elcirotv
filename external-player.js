@@ -1,8 +1,8 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
   if(url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&url.hostname==='embed.ksdjugfssddeports.com'&&!url.search&&!url.hash&&/^\/embed2?\/[a-z0-9]{1,80}\.php$/.test(url.pathname))return url.href;
-  if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st'].includes(url.hostname)||url.pathname!=='/live1.php'||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
-  return 'https://streamxhd.sbs/live1.php?stream='+encodeURIComponent(url.searchParams.get('stream'));
+  if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st'].includes(url.hostname)||!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
+  return 'https://streamxhd.sbs'+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
 }
 // Recover only after an observed connection loss; never restart a healthy stream on a timer.
 export function watchPlayerConnection({window=globalThis.window,document=globalThis.document,onOffline=()=>{},onReconnect=()=>{},setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout}){
