@@ -2,7 +2,7 @@
 declare(strict_types=1);
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
-        if(zlive_player_url($source['url']))$url=$source['url'];
+        if(embedlatam_player_url($source['url']))$url=$source['url'];
         elseif(fulbito_player_url($source['url']))$url=fulbito_canonical($source['url']);
         else continue;
         $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];

@@ -1,6 +1,6 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
-  if(url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&url.hostname==='zlive.st'&&!url.search&&!url.hash&&/^\/embed\/[a-zA-Z0-9_-]{1,160}$/.test(url.pathname))return url.href;
+  if(url.protocol==='https:'&&!url.username&&!url.password&&!url.port&&url.hostname==='embed.ksdjugfssddeports.com'&&!url.search&&!url.hash&&/^\/embed2?\/[a-z0-9]{1,80}\.php$/.test(url.pathname))return url.href;
   if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st'].includes(url.hostname)||url.pathname!=='/live1.php'||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
   return 'https://streamxhd.sbs/live1.php?stream='+encodeURIComponent(url.searchParams.get('stream'));
 }
