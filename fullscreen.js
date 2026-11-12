@@ -9,7 +9,12 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
   const exitNative=()=>video?.webkitDisplayingFullscreen?video.webkitExitFullscreen?.():document.exitFullscreen?document.exitFullscreen():document.webkitExitFullscreen?.();
   const resize=()=>{
     if(!expanded||!section.style)return;
-    for(const [name,value] of Object.entries({height:viewport?.height||window?.innerHeight,width:viewport?.width||window?.innerWidth,top:viewport?.offsetTop||0,left:viewport?.offsetLeft||0})){
+    const height=viewport?.height||window?.innerHeight,width=viewport?.width||window?.innerWidth;
+    // iPhone webviews cannot fullscreen a cross-origin video from the parent.
+    // Rotate the entire embed into a landscape viewport instead of letterboxing it in portrait.
+    if(!video&&width<=600&&height>width)section.classList.add('player-landscape');
+    else section.classList.remove('player-landscape');
+    for(const [name,value] of Object.entries({height,width,top:viewport?.offsetTop||0,left:viewport?.offsetLeft||0})){
       if(Number.isFinite(value))section.style.setProperty('--player-'+name,value+'px');
     }
   };
@@ -19,16 +24,16 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
     previousBodyOverflow=document.body?.style.overflow;previousFocus=document.activeElement;
     section.classList.add('player-expanded');document.documentElement.style.overflow='hidden';
     if(document.body)document.body.style.overflow='hidden';
-    button.textContent='Salir de pantalla completa';button.setAttribute('aria-pressed','true');
+    button.textContent='Salir ✕';button.setAttribute('aria-label','Salir de pantalla completa');button.setAttribute('aria-pressed','true');
     resize();
   }
   function collapse(){
     if(!expanded)return;
-    expanded=false;nativeOwned=false;section.classList.remove('player-expanded');
+    expanded=false;nativeOwned=false;section.classList.remove('player-expanded');section.classList.remove('player-landscape');
     document.documentElement.style.overflow=previousOverflow;
     if(document.body)document.body.style.overflow=previousBodyOverflow;
     for(const name of ['height','width','top','left'])section.style?.removeProperty('--player-'+name);
-    button.textContent='Pantalla completa';button.setAttribute('aria-pressed','false');
+    button.textContent='Pantalla completa';button.setAttribute('aria-label','Pantalla completa');button.setAttribute('aria-pressed','false');
     if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});
   }
   async function exit(){

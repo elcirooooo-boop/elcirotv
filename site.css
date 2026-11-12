@@ -16,11 +16,13 @@
 
 #videoSection.player-expanded{position:fixed;inset:auto;top:var(--player-top,0px);left:var(--player-left,0px);z-index:2147483647;box-sizing:border-box;width:var(--player-width,100%);height:100vh;height:var(--player-height,100dvh);margin:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);background:#000;display:flex;flex-direction:column;overflow:hidden}
 #videoSection.player-expanded:fullscreen,#videoSection.player-expanded:-webkit-full-screen{top:0;left:0;width:100%;height:100%}
+#videoSection.player-expanded.player-landscape{width:var(--player-height,100dvh);height:var(--player-width,100vw);transform-origin:top left;transform:translateX(var(--player-width,100vw)) rotate(90deg);padding:0}
 #videoSection.player-expanded .video-wrap{position:relative;flex:1;min-height:0;width:100%;margin:0;border-radius:0;aspect-ratio:auto}
 #videoSection.player-expanded .video-wrap .external-player{position:absolute;inset:0;width:100%;height:100%}
-#videoSection.player-expanded .status-actions{flex:none;display:flex;gap:8px;margin:0;padding:8px;max-height:30%;overflow:auto;background:#111}
+#videoSection.player-expanded .status-actions{position:absolute;top:max(8px,env(safe-area-inset-top,0px));right:max(8px,env(safe-area-inset-right,0px));z-index:2;display:flex;margin:0;padding:0;background:transparent}
+#videoSection.player-expanded .status-actions button:not(#fullscreen){display:none}
 #videoSection.player-expanded .status-actions button{min-height:44px;padding:8px 12px;color:#fff;background:#252525;border:1px solid #666;border-radius:8px}
-#videoSection.player-expanded #fullscreen{order:-1;background:#006dcc}
+#videoSection.player-expanded #fullscreen{order:-1;min-height:36px;padding:6px 10px;background:#111b;font-size:12px}
 #videoSection.player-expanded .signal-status,#videoSection.player-expanded .player-note,#videoSection.player-expanded #providerOpen{display:none}
 
 .event-day{margin:0;padding:18px 24px;background:#edf3fa;border-bottom:1px solid var(--line);font-size:15px;font-weight:650;text-transform:capitalize}.event-day span{display:block;margin-top:4px;font-size:11px;font-weight:400;color:var(--muted);text-transform:none}@media(max-width:700px){.event-day{padding:16px 18px}}
