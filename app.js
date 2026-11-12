@@ -5,7 +5,7 @@ import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
-import {createPlayerFullscreen} from './fullscreen.js?v=20261109b';
+import {createPlayerFullscreen} from './fullscreen.js?v=20261112a';
 
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
