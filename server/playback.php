@@ -2,7 +2,7 @@
 declare(strict_types=1);
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
-        if(!damitv_player_url($source['url']))continue;$url=damitv_canonical($source['url']);
+        if(!fulbito_player_url($source['url']))continue;$url=fulbito_canonical($source['url']);
         $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
     }
     if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);

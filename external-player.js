@@ -1,20 +1,7 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
-  const invalid=()=>{throw Error('El reproductor de DAMITV no es válido.');};
-  if(url.protocol!=='https:'||url.username||url.password||url.port||url.hostname!=='damitv.st'||url.hash)invalid();
-  const keys=[...url.searchParams.keys()];
-  if(url.pathname==='/embed/'){
-    if(keys.length!==1||keys[0]!=='id'||!/^[a-zA-Z0-9_/-]{1,180}$/.test(url.searchParams.get('id')||''))invalid();
-  }else if(url.pathname==='/player/hls/'){
-    if(keys.some(k=>!['v','url','name'].includes(k))||new Set(keys).size!==keys.length||!/^\d{1,8}$/.test(url.searchParams.get('v')||''))invalid();
-    const target=url.searchParams.get('url')||'';
-    if(!target||target.length>7000||/[\x00-\x20]/.test(target))invalid();
-    if(!target.startsWith('/')||target.startsWith('//')){
-      const nested=new URL(target);
-      if(nested.protocol!=='https:'||nested.username||nested.password||nested.port||nested.hash||!(nested.hostname==='damitv.st'||nested.hostname.endsWith('.damitv.st')))invalid();
-    }
-  }else invalid();
-  return url.href;
+  if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st'].includes(url.hostname)||url.pathname!=='/live1.php'||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
+  return 'https://streamxhd.sbs/live1.php?stream='+encodeURIComponent(url.searchParams.get('stream'));
 }
 // Recover only after an observed connection loss; never restart a healthy stream on a timer.
 export function watchPlayerConnection({window=globalThis.window,document=globalThis.document,onOffline=()=>{},onReconnect=()=>{},setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout}){
@@ -36,7 +23,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   let index=0,disposed=false,frame;
   const mount=()=>{
     if(frame){frame.src='about:blank';frame.remove();}
-    frame=document.createElement('iframe');frame.title='Reproductor de DAMITV · '+name;
+    frame=document.createElement('iframe');frame.title='Reproductor de StreamXHD · '+name;
     frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
