@@ -169,20 +169,18 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-streamxhd-embedlatam-v1';$old=cached_read($key);
+    $key='agenda-streamxhd-only-v5';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);$fallback=$old??cached_read('agenda-streamxhd-only-v4');if(time()-($fallback['loaded']??0)<1800)return array_replace($fallback,['stale'=>true]);return ['provider'=>'streamxhd-embedlatam','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streamxhd','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
         $feed=agenda_feed('streamxhd-only-feed-v4',fn()=>normalize_streamxhd_agenda(fetch_json('https://streamxhd.sbs/eventos.json')));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-streamxhd-only-v4');
+        $previous=$old??cached_read('agenda-streamxhd-embedlatam-v1')??cached_read('agenda-streamxhd-only-v4');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
-        $latam=embedlatam_catalogue();
-        $events=connect_embedlatam_events($events,$latam['channels']);
-        $channels=embedlatam_all_channels($events,$latam['channels']);
+        $channels=streamxhd_channels($events,fulbito_channels());
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'streamxhd-embedlatam','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null||$latam['stale']];cached_write($key,$data);return $data;
+        $data=['version'=>1,'provider'=>'streamxhd','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {

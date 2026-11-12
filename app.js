@@ -1,5 +1,6 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261112b';
 import {createExternalPlayer} from './external-player.js?v=20261112g';
+import {createLivePlayer} from './live-player.js?v=20261112h';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay} from './schedule.js?v=20261110a';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
@@ -19,6 +20,18 @@ const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 const preparedPlayback=createPreparedPlayback((id,{excluded,refresh,signal})=>api('play?source='+encodeURIComponent(id)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal}));
+let hlsLibrary;
+function loadHls(){
+  if(window.Hls)return Promise.resolve(window.Hls);
+  if(!hlsLibrary)hlsLibrary=new Promise(resolve=>{
+    const script=document.createElement('script');
+    script.src='/hls.min.js';
+    script.onload=()=>resolve(window.Hls);
+    script.onerror=()=>{hlsLibrary=undefined;resolve(undefined);};
+    document.head.append(script);
+  });
+  return hlsLibrary;
+}
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
@@ -42,17 +55,46 @@ async function play(signal,signals,{refresh=false}={}){
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
-  status.textContent='Cargando reproductor externo del proveedor…';
-  try{
-    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
-    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
-    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
+  const container=section.querySelector('.video-wrap');
+  function openEmbed(source){
+    if(!active())return;
+    playerFullscreen?.destroy();
+    player?.destroy();
+    player=createExternalPlayer({container,sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
 
       next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+' Si se detiene, vuelve a seleccionar el canal.';
     }});
     next.onclick=()=>player?.next();
     playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
     externalActive=true;void heartbeat().then(refreshViewers);
+  }
+  status.textContent='Conectando con el canal…';
+  try{
+    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
+    if(source.transport==='embed'){
+      openEmbed(source);
+    }else if(source.transport==='direct'){
+      const video=document.createElement('video');
+      video.controls=true;video.playsInline=true;
+      const Hls=video.canPlayType('application/vnd.apple.mpegurl')?undefined:await loadHls();
+      if(!active())return;
+      if(!Hls?.isSupported()&&!video.canPlayType('application/vnd.apple.mpegurl')){
+        openEmbed(source);
+      }else{
+        container.replaceChildren(video);
+        let initial=source;
+        player=createLivePlayer({video,Hls,async resolveSource(excluded,signal,{refresh}){
+          if(initial){const first=initial;initial=null;return first;}
+          const nextSource=await preparedPlayback.read(identity,{excluded,refresh,signal});
+          if(nextSource.transport!=='direct')throw Error('La señal directa aún no está disponible.');
+          return nextSource;
+        },onStatus(message){if(active())status.textContent=message;},onState(){
+          if(active()){externalActive=!video.paused;void heartbeat().then(refreshViewers);}
+        },onUnavailable(){if(active())openEmbed(source);}});
+        playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
+        void player.start();
+      }
+    }else throw Error('Esta señal no está disponible.');
   }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }

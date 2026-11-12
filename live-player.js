@@ -71,7 +71,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
       sourceURL=source.url;tokenExpiry=Date.parse(source.expiresAt||'')||0;
       if(Number.isFinite(source.renewInSeconds)&&source.renewInSeconds>0)renewAfter(source.renewInSeconds*1000);
       sourceKey=source.sourceKey||'';persistent=['relay','direct'].includes(source.transport);
-      if(renewal&&engine){engine.loadSource(source.url);return;}
+      if(renewal&&engine){replacing=true;engine.loadSource(source.url);return;}
       replacing=true;starting=true;
       engine?.destroy();engine=undefined;
       video.removeAttribute('src');video.load();
@@ -116,7 +116,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     if(disposed||video.paused||video.currentTime===position)return;
     const advancing=position>=0&&video.currentTime>position&&video.currentTime-position<5;
     position=video.currentTime;lastProgress=now();onProgress();
-    if(advancing){delivered=true;if(pending){timers.clearTimeout(pending);pending=undefined;status('Reproduciendo');}}
+    if(advancing){delivered=true;replacing=false;if(pending){timers.clearTimeout(pending);pending=undefined;status('Reproduciendo');}}
     if(!advancing)stableSince=0;
     else if(!stableSince)stableSince=now();
     if(stableSince&&now()-stableSince>30000){reconnects=0;networkRetries=0;mediaRetries=0;excluded.clear();}
