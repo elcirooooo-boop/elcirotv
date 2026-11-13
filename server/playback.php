@@ -5,8 +5,15 @@ function external_playback(array $signal): array {
         if(embedlatam_player_url($source['url']))$url=$source['url'];
         elseif(fulbito_player_url($source['url'])){
             $url=fulbito_canonical($source['url']);
-            $automatic=str_replace('/live1.php?', '/live2.php?', $url);
-            $sources[$automatic]=['url'=>$automatic,'sourceKey'=>fingerprint($automatic)];
+            $path=substr($url,strlen('https://streamxhd.sbs'));
+            $automatic=str_replace('/live1.php?', '/live2.php?', $path);
+            foreach([$automatic,$path] as $route){
+                foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
+                    $option='https://'.$host.$route;
+                    $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
+                }
+            }
+            continue;
         }
         else continue;
         $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];

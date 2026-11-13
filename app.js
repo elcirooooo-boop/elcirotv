@@ -1,5 +1,5 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261112b';
-import {createExternalPlayer} from './external-player.js?v=20261112j';
+import {createExternalPlayer} from './external-player.js?v=20261113a';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261109n';
@@ -48,7 +48,7 @@ async function play(signal,signals,{refresh=false}={}){
     if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
     player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
 
-      next.hidden=total<2;status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+' Si se detiene, vuelve a seleccionar el canal.';
+      next.hidden=total<2;next.textContent='Cambiar servidor';status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+(total>1?' Si no carga, cambia de servidor.':'');
     }});
     next.onclick=()=>player?.next();
     playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
