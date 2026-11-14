@@ -21,17 +21,4 @@ La emisión depende de servicios externos. Esta conversión no garantiza que tod
 
 ## Actualizar desde el proyecto
 
-Para habilitar Clappr para un canal, guarda `private-channels.json` en el directorio privado que usa `storage()`. Usa el identificador del canal de la agenda, por ejemplo `winplus`, y una URL HLS habilitada para tu dominio. Si la URL caduca, indica `expiresAt` en formato ISO 8601 y actualiza el archivo antes del vencimiento. Este ejemplo usa un dominio ficticio.
-
-```json
-{
-  "winplus": {
-    "url": "https://cdn.example/hls/winplus/live.m3u8",
-    "expiresAt": "2027-01-01T18:00:00Z"
-  }
-}
-```
-
-Para una URL permanente, omite `expiresAt`. Si falta una señal HLS vigente, la página muestra «Señal no disponible».
-
 En el equipo de desarrollo, con las dependencias de `netlify-site` instaladas: `node hostinger-php/build.mjs`. El resultado queda en `hostinger-package/public_html`. Crea el ZIP con **el contenido** de esa carpeta, incluyendo `.htaccess`.

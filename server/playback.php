@@ -1,35 +1,20 @@
 <?php
 declare(strict_types=1);
 function external_playback(array $signal): array {
-    $sources=[];
-    $streamName = '';
-    foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
         if(fulbito_player_url($source['url'])){
-            parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $q);
-            if (!empty($q['stream'])) {
-                $streamName = (string)$q['stream'];
-                break;
+            $url=fulbito_canonical($source['url']);
+            $path=substr($url,strlen('https://streamxhd.sbs'));
+            $automatic=str_replace('/live1.php?', '/live2.php?', $path);
+            foreach([$automatic,$path] as $route){
+                foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
+                    $option='https://'.$host.$route;
+                    $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
+                }
             }
         }
     }
-
-    $slug = embedlatam_alias(strtolower(trim($streamName ?: ($signal['slug'] ?? ''))));
-    if ($slug !== '') {
-        $clean = function_exists('embedlatam_clean_iframe_url') ? embedlatam_clean_iframe_url($slug) : null;
-        if ($clean) {
-            $sources[$clean] = ['url' => $clean, 'sourceKey' => fingerprint($clean)];
-        }
-        $options = [
-            'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php',
-            'https://embed.ksdjugfssddeports.com/embed/' . rawurlencode($slug) . '.php',
-        ];
-        foreach ($options as $opt) {
-            $sources[$opt] = ['url' => $opt, 'sourceKey' => fingerprint($opt)];
-        }
-    }
-
-    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');
-    $sources=array_values($sources);
+    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
     return ['transport'=>'embed','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
 }
 function published_player_config(string $html): ?array {
