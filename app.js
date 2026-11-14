@@ -1,5 +1,5 @@
-import {createPlayerFullscreen} from './fullscreen.js?v=20261112b';
-import {createExternalPlayer} from './external-player.js?v=20261113c';
+import {createPlayerFullscreen} from './fullscreen.js?v=20261114c';
+import {createExternalPlayer} from './external-player.js?v=20261114c';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -38,7 +38,9 @@ async function play(signal,signals,{refresh=false}={}){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
-  section.hidden=false;next.hidden=true;
+  const fullscreen=section.querySelector('#fullscreen'),retry=section.querySelector('#providerRetry');
+  section.hidden=false;
+  fullscreen.hidden=true;retry.hidden=true;next.hidden=true;
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
@@ -46,19 +48,30 @@ async function play(signal,signals,{refresh=false}={}){
   try{
     const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
     if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
-    player=createExternalPlayer({container:section.querySelector('.video-wrap'),sources:source.sources||[{url:source.url}],name:signal.name,onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},onChange:({index,total,reason})=>{
-
-      next.hidden=total<2;next.textContent='Cambiar servidor';status.textContent=signal.name+' · Reproductor externo'+(total>1?' · Opción '+(index+1)+' de '+total:'')+'. '+(reason==='reconnect'?'Conexión recuperada. Toca reproducir dentro del vídeo.':reason==='retry'?'Reproductor recargado. Toca reproducir dentro del vídeo.':'Toca reproducir dentro del vídeo.')+(total>1?' Si no carga, cambia de servidor.':'');
-    }});
+    const signalLabel=({index,total})=>signal.name+(total>1?' · Servidor '+(index+1)+' de '+total:'');
+    player=createExternalPlayer({
+      container:section.querySelector('.video-frame'),sources:source.sources||[{url:source.url}],name:signal.name,
+      onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},
+      onChange:info=>{
+        next.hidden=info.total<2;
+        status.textContent=signalLabel(info)+' · Cargando…';
+      },
+      onLoad:info=>{if(active())status.textContent=signalLabel(info)+' · Toca reproducir dentro del vídeo.';},
+      onSlow:info=>{
+        if(active())status.textContent=signalLabel(info)+' · Está tardando en abrir. '+(info.total>1?'Puedes cambiar de servidor.':'Puedes recargar la señal.');
+      },
+    });
+    fullscreen.hidden=false;retry.hidden=false;
+    retry.onclick=()=>player?.reload();
     next.onclick=()=>player?.next();
-    playerFullscreen=createPlayerFullscreen({section,button:document.querySelector('#fullscreen')});
+    playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
     externalActive=true;void heartbeat().then(refreshViewers);
   }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="fullscreen" type="button">Pantalla completa</button><button id="providerNext" hidden>Otra opción del proveedor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
@@ -86,6 +99,13 @@ function chooser(event,signals){
     document.title=getShareData().title;
   }
   const initial=event?sharedSignal(event,location.search)||signals[0]:signals[0];
+  if(initial&&data.provider==='streamxhd'&&!document.querySelector('link[data-player-preconnect]')){
+    const connection=document.createElement('link');
+    connection.rel='preconnect';
+    connection.href='https://streamxhd.sbs';
+    connection.dataset.playerPreconnect='';
+    document.head.append(connection);
+  }
   if(initial&&data.provider!=='futbolvivo')void preparedPlayback.prepare(initial.id);
   main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
 }

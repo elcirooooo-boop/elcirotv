@@ -12,7 +12,7 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
     const height=viewport?.height||window?.innerHeight,width=viewport?.width||window?.innerWidth;
     // iPhone webviews cannot fullscreen a cross-origin video from the parent.
     // Rotate the entire embed into a landscape viewport instead of letterboxing it in portrait.
-    if(!video&&width<=600&&height>width)section.classList.add('player-landscape');
+    if(!video&&!ownsNative()&&width<=600&&height>width)section.classList.add('player-landscape');
     else section.classList.remove('player-landscape');
     for(const [name,value] of Object.entries({height,width,top:viewport?.offsetTop||0,left:viewport?.offsetLeft||0})){
       if(Number.isFinite(value))section.style.setProperty('--player-'+name,value+'px');
@@ -24,7 +24,7 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
     previousBodyOverflow=document.body?.style.overflow;previousFocus=document.activeElement;
     section.classList.add('player-expanded');document.documentElement.style.overflow='hidden';
     if(document.body)document.body.style.overflow='hidden';
-    button.textContent='Salir ✕';button.setAttribute('aria-label','Salir de pantalla completa');button.setAttribute('aria-pressed','true');
+    button.textContent='Salir ✕';button.setAttribute('aria-label','Salir de pantalla completa');button.setAttribute('title','Salir de pantalla completa');button.setAttribute('aria-pressed','true');
     resize();
   }
   function collapse(){
@@ -33,7 +33,7 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
     document.documentElement.style.overflow=previousOverflow;
     if(document.body)document.body.style.overflow=previousBodyOverflow;
     for(const name of ['height','width','top','left'])section.style?.removeProperty('--player-'+name);
-    button.textContent='Pantalla completa';button.setAttribute('aria-label','Pantalla completa');button.setAttribute('aria-pressed','false');
+    button.textContent='Pantalla completa';button.setAttribute('aria-label','Pantalla completa');button.setAttribute('title','Pantalla completa');button.setAttribute('aria-pressed','false');
     if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});
   }
   async function exit(){
@@ -49,7 +49,7 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
       // iPhone exposes fullscreen on the video, rather than the surrounding section.
       if(video?.requestFullscreen)await video.requestFullscreen();
       else if(video?.webkitEnterFullscreen)video.webkitEnterFullscreen();
-      else {
+      else if(document.fullscreenEnabled!==false) {
         const request=section.requestFullscreen||section.webkitRequestFullscreen;
         if(request)await request.call(section);
       }
@@ -58,7 +58,7 @@ export function createPlayerFullscreen({section,button,document=globalThis.docum
     }catch{ /* Telegram/iOS keeps the viewport expansion when native mode is blocked. */ }
   }
   const toggle=()=>expanded||ownsNative()||video?.webkitDisplayingFullscreen?void exit():void enter();
-  const changed=()=>{if(ownsNative()||video?.webkitDisplayingFullscreen){nativeOwned=true;expand();}else if(nativeOwned)collapse();};
+  const changed=()=>{if(ownsNative()||video?.webkitDisplayingFullscreen){nativeOwned=true;expand();resize();}else if(nativeOwned)collapse();};
   const ended=()=>collapse();
   const key=event=>{if(event.key==='Escape'&&expanded){event.preventDefault();void exit();}};
   button.setAttribute('aria-pressed','false');button.addEventListener('click',toggle);
