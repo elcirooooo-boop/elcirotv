@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
+require_once __DIR__.'/streampk-agenda.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -169,22 +170,23 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-embedlatam-full-v1';$old=cached_read($key);
+    $key='agenda-streampk-v1';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'embedlatam','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'streampk','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('streamxhd-only-feed-v4',fn()=>normalize_streamxhd_agenda(fetch_json('https://streamxhd.sbs/eventos.json')));
+        $feed=agenda_feed('streampk-v1', 'fetch_streampk_events');
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-streamxhd-embedlatam-v1')??cached_read('agenda-streamxhd-only-v4');
-        $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
-        $catalogue=embedlatam_catalogue()['channels']??[];
-        $channels=embedlatam_all_channels($events,$catalogue);
-        remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'embedlatam','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
+        $previous=$old??cached_read('agenda-embedlatam-full-v1');
+        $events=retain_agenda_links($feed??[],$previous['events']??[]);
+        $channels=[];
+        $data=['version'=>1,'provider'=>'streampk','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$feed===null];cached_write($key,$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
+    if (($data['provider'] ?? '') === 'streampk') {
+        return array_intersect_key($data, array_flip(['provider','day','updatedAt','stale','events','channels']));
+    }
     $hide=function($signal){if(($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
     $listed=[];
     $add=function($signal)use(&$channels,&$listed,$hide){
