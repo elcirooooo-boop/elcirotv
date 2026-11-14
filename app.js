@@ -32,7 +32,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí ↗</span></button>`).join('');}
-async function play(signal,{refresh=false}={}){
+async function play(signal){
   stop();
   selected=signal.id;
   const generation=playerGeneration;
@@ -40,18 +40,15 @@ async function play(signal,{refresh=false}={}){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection');
   const status=section.querySelector('#signalStatus');
-  const retry=section.querySelector('#providerRetry');
   const container=section.querySelector('.video-frame');
   section.hidden=false;
   container.parentElement.hidden=true;
-  retry.hidden=true;
-  retry.onclick=()=>void play(signal,{refresh:true});
   document.querySelectorAll('[data-signal]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.signal===signal.id));
   });
   status.textContent='Cargando reproductor…';
   try {
-    const source=await preparedPlayback.read(signal.id,{refresh});
+    const source=await preparedPlayback.read(signal.id);
     if(!active())return;
     if(source.transport!=='clappr')throw Error('Señal no disponible.');
     const frame=document.createElement('iframe');
@@ -69,13 +66,12 @@ async function play(signal,{refresh=false}={}){
   } catch(error) {
     if(!active())return;
     status.textContent=error.message||'Señal no disponible.';
-    retry.hidden=false;
   }
   section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);

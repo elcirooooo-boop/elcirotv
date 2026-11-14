@@ -30,8 +30,7 @@ if (!$available) {
         html,body,#videoSection,#reproductor{width:100%;height:100%;margin:0;background:#000;color:#fff}
         body{font:16px system-ui,sans-serif}
         #videoSection{position:relative;overflow:hidden}
-        #controls{position:absolute;z-index:1;top:8px;right:8px;display:flex;gap:8px}
-        button,#signal-status{background:#202020;color:#fff;padding:10px;border:1px solid #777;border-radius:8px}
+        #signal-status{background:#202020;color:#fff;padding:10px;border:1px solid #777;border-radius:8px}
         #signal-status{position:absolute;bottom:52px;left:8px;margin:0}
     </style>
 </head>
@@ -41,9 +40,6 @@ if (!$available) {
 <?php else: ?>
     <section id="videoSection">
         <div id="reproductor"></div>
-        <div id="controls">
-            <button id="retry" type="button" hidden>Recargar señal</button>
-        </div>
         <p id="signal-status" role="status" hidden></p>
     </section>
     <script src="https://cdn.jsdelivr.net/npm/@clappr/player@0.8.0/dist/clappr.min.js"
@@ -56,7 +52,6 @@ if (!$available) {
         endpoint.searchParams.set('format', 'json');
         const section = document.querySelector('#videoSection');
         const status = document.querySelector('#signal-status');
-        const retry = document.querySelector('#retry');
         let player, timer, renewal, pending, attempts = 0, playingSince = null;
         let paused = false, reloadRequested = false;
 
@@ -80,7 +75,6 @@ if (!$available) {
             try {
                 const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
                 if (response.status === 410) {
-                    retry.hidden = false;
                     showStatus('Señal no disponible.');
                     return;
                 }
@@ -103,9 +97,8 @@ if (!$available) {
         function recover() {
             if (timer) return;
             playingSince = null;
-            retry.hidden = false;
             if (attempts >= 2) {
-                showStatus('La señal se interrumpió. Pulsa Recargar señal para volver a intentarlo.');
+                showStatus('La señal se interrumpió.');
                 return;
             }
             attempts++;
@@ -129,17 +122,8 @@ if (!$available) {
                 timer = null;
                 playingSince ??= Date.now();
                 if (Date.now() - playingSince >= 10000) attempts = 0;
-                retry.hidden = true;
                 showStatus('');
             });
-            retry.onclick = () => {
-                clearTimeout(timer);
-                timer = null;
-                attempts = 0;
-                showStatus('Cargando señal…');
-                paused = false;
-                void refresh(true);
-            };
             scheduleRenewal(<?= json_encode($expiry) ?>);
         } else {
             showStatus('No se pudo cargar el reproductor. Vuelve a abrir este canal.');
