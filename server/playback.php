@@ -13,32 +13,19 @@ function external_playback(array $signal): array {
         }
     }
 
-    if ($streamName !== '') {
+    $slug = embedlatam_alias(strtolower(trim($streamName ?: ($signal['slug'] ?? ''))));
+    if ($slug !== '') {
         $options = [
-            'https://streamxhd.st/live1.php?stream=' . rawurlencode($streamName),
-            'https://streamxhd.sbs/live2.php?stream=' . rawurlencode($streamName),
-            'https://streamxhd.sbs/live1.php?stream=' . rawurlencode($streamName),
-            'https://streamxhd.click/live1.php?stream=' . rawurlencode($streamName),
+            'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php',
+            'https://embed.ksdjugfssddeports.com/embed/' . rawurlencode($slug) . '.php',
         ];
         foreach ($options as $opt) {
             $sources[$opt] = ['url' => $opt, 'sourceKey' => fingerprint($opt)];
         }
-    } else {
-        foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
-            if(fulbito_player_url($source['url'])){
-                $url=fulbito_canonical($source['url']);
-                $path=substr($url,strlen('https://streamxhd.sbs'));
-                $automatic=str_replace('/live1.php?', '/live2.php?', $path);
-                foreach([$automatic,$path] as $route){
-                    foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
-                        $option='https://'.$host.$route;
-                        $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
-                    }
-                }
-            }
-        }
     }
-    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
+
+    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    $sources=array_values($sources);
     return ['transport'=>'embed','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
 }
 function published_player_config(string $html): ?array {

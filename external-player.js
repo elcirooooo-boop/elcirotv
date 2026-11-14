@@ -1,14 +1,9 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('URL no válida.');
-  const allowedHosts=['tvf90.com','streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'];
-  if(!allowedHosts.includes(url.hostname))throw Error('Servidor no autorizado.');
-  const allowedPaths=['/online.php','/5.php','/1.php','/2.php','/hd.php','/live1.php','/live2.php'];
-  if(!allowedPaths.includes(url.pathname))throw Error('Ruta no autorizada.');
-  const stream=url.searchParams.get('stream')||'';
-  if(!/^[-a-z0-9_]{1,80}$/i.test(stream))throw Error('Canal no válido.');
-  const host=url.hostname==='stream-xhd.com'?'streamxhd.sbs':url.hostname;
-  return 'https://'+host+url.pathname+'?stream='+encodeURIComponent(stream);
+  if(url.hostname!=='embed.ksdjugfssddeports.com')throw Error('Servidor no autorizado.');
+  if(!/^\/embed2?\/[a-z0-9_-]+\.php$/i.test(url.pathname))throw Error('Ruta no autorizada.');
+  return 'https://' + url.hostname + url.pathname;
 }
 // Recover only after an observed connection loss; never restart a healthy stream on a timer.
 export function watchPlayerConnection({window=globalThis.window,document=globalThis.document,onOffline=()=>{},onReconnect=()=>{},setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout}){
