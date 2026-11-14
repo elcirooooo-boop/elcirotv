@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__.'/common.php';
+require_once __DIR__.'/network.php';
+require_once __DIR__.'/embedlatam.php';
+
 function clappr_channels(): array {
     static $channels;
     if ($channels === null) {
@@ -9,6 +13,49 @@ function clappr_channels(): array {
         $channels = $config['clappr_channels'] ?? [];
     }
     return $channels;
+}
+
+function embedlatam_stream_url(string $channel): ?string {
+    $slug = embedlatam_alias(strtolower(trim($channel)));
+    $cacheKey = 'embedlatam-stream-v2-' . $slug;
+    $cached = cached_read($cacheKey);
+    if (($cached['expires_at'] ?? 0) > time() + 120 && !empty($cached['url'])) {
+        return $cached['url'];
+    }
+
+    try {
+        $embedUrl = 'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php';
+        $embedRes = net_request($embedUrl, 'https://embed.ksdjugfssddeports.com/', '', 1000000, 5);
+        if ($embedRes['status'] !== 200) {
+            fclose($embedRes['stream']);
+            return null;
+        }
+        $embedHtml = read_text($embedRes);
+        if (!preg_match('~<iframe[^>]+src=["\']([^"\']*stream\.php[^"\']*)["\']~i', $embedHtml, $mIframe)) {
+            return null;
+        }
+        $streamUrl = str_replace('&amp;', '&', $mIframe[1]);
+
+        $streamRes = net_request($streamUrl, 'https://embed.ksdjugfssddeports.com/', '', 1000000, 5);
+        if ($streamRes['status'] !== 200) {
+            fclose($streamRes['stream']);
+            return null;
+        }
+        $streamHtml = read_text($streamRes);
+        if (!preg_match('~https?://[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?~i', $streamHtml, $mM3u8)) {
+            return null;
+        }
+
+        $m3u8Url = $mM3u8[0];
+        // Guardar en caché durante 2 horas para velocidad máxima
+        cached_write($cacheKey, [
+            'url' => $m3u8Url,
+            'expires_at' => time() + 7200,
+        ]);
+        return $m3u8Url;
+    } catch (Throwable) {
+        return null;
+    }
 }
 
 function clappr_source(string $channel): ?array {
@@ -37,13 +84,12 @@ function clappr_source(string $channel): ?array {
         }
     }
 
-    // Auto-resolución a través del Cloudflare Worker configurado
-    $worker = $stored['worker_url'] ?? clappr_channels()['worker_url'] ?? null;
-    if (is_string($worker) && filter_var($worker, FILTER_VALIDATE_URL)) {
-        $worker = rtrim($worker, '/');
+    // Auto-resolución de flujo limpio desde EmbedLatam con CORS abierto
+    $embedM3u8 = embedlatam_stream_url($channel);
+    if ($embedM3u8 !== null) {
         return [
-            'url' => $worker . '/stream.m3u8?channel=' . rawurlencode($channel),
-            'expires_at' => null,
+            'url' => $embedM3u8,
+            'expires_at' => time() + 7200,
         ];
     }
 

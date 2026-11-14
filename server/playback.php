@@ -15,10 +15,10 @@ function external_playback(array $signal): array {
 
     if ($streamName !== '') {
         $options = [
-            'https://tvf90.com/online.php?stream=' . rawurlencode($streamName),
-            'https://tvf90.com/5.php?stream=' . rawurlencode($streamName),
+            'https://streamxhd.st/live1.php?stream=' . rawurlencode($streamName),
             'https://streamxhd.sbs/live2.php?stream=' . rawurlencode($streamName),
             'https://streamxhd.sbs/live1.php?stream=' . rawurlencode($streamName),
+            'https://streamxhd.click/live1.php?stream=' . rawurlencode($streamName),
         ];
         foreach ($options as $opt) {
             $sources[$opt] = ['url' => $opt, 'sourceKey' => fingerprint($opt)];

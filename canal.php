@@ -1,10 +1,12 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/server/common.php';
+require_once __DIR__.'/server/network.php';
+require_once __DIR__.'/server/embedlatam.php';
 require_once __DIR__.'/server/clappr.php';
 
 header('Cache-Control: no-store');
-$channel = $_GET['canal'] ?? 'winplus';
+$channel = $_GET['channel'] ?? $_GET['canal'] ?? 'espn';
 $signal = is_string($channel) ? clappr_source($channel) : null;
 $available = $signal !== null;
 $source = $signal['url'] ?? null;

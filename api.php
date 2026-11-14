@@ -21,6 +21,19 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
+        $streamName = '';
+        foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+            if(fulbito_player_url($source['url'])){
+                parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $params);
+                if (!empty($params['stream'])) {
+                    $streamName = (string)$params['stream'];
+                    break;
+                }
+            }
+        }
+        if (($_GET['embed'] ?? null) !== '1' && $streamName !== '' && clappr_source($streamName)) {
+            respond(['transport'=>'clappr','channel'=>$streamName]);
+        }
         respond(external_playback($signal));
     }
     if($action==='presence'){
