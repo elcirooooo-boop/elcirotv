@@ -4,12 +4,26 @@ require_once __DIR__.'/server/common.php';
 require_once __DIR__.'/server/network.php';
 require_once __DIR__.'/server/embedlatam.php';
 require_once __DIR__.'/server/clappr.php';
+require_once __DIR__.'/server/daddylive.php';
 
 header('Cache-Control: no-store');
 $channel = $_GET['channel'] ?? $_GET['canal'] ?? 'espn';
 $slug = embedlatam_alias(strtolower(trim($channel)));
 
-$cleanIframe = embedlatam_clean_iframe_url($slug);
+// PROVEEDOR ACTIVO: 'daddylive' o 'embedlatam'
+// Activado 'daddylive' para la prueba solicitada.
+// Para volver al instante al proveedor anterior, cambiar a 'embedlatam'.
+$provider = strtolower((string)($_GET['provider'] ?? $_GET['proveedor'] ?? 'daddylive'));
+
+$cleanIframe = null;
+if ($provider === 'daddylive') {
+    $cleanIframe = daddylive_iframe_url($slug);
+}
+
+if (!$cleanIframe) {
+    $cleanIframe = embedlatam_clean_iframe_url($slug);
+    $provider = 'embedlatam';
+}
 if (!$cleanIframe) {
     $cleanIframe = 'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php';
 }
@@ -17,7 +31,7 @@ if (!$cleanIframe) {
 if (($_GET['format'] ?? null) === 'json') {
     header('Content-Type: application/json; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
-    echo json_encode(['url' => $cleanIframe, 'channel' => $slug]);
+    echo json_encode(['url' => $cleanIframe, 'channel' => $slug, 'provider' => $provider]);
     exit;
 }
 ?>
