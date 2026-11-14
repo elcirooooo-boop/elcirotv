@@ -1,15 +1,39 @@
 <?php
 declare(strict_types=1);
 function external_playback(array $signal): array {
-    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+    $sources=[];
+    $streamName = '';
+    foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
         if(fulbito_player_url($source['url'])){
-            $url=fulbito_canonical($source['url']);
-            $path=substr($url,strlen('https://streamxhd.sbs'));
-            $automatic=str_replace('/live1.php?', '/live2.php?', $path);
-            foreach([$automatic,$path] as $route){
-                foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
-                    $option='https://'.$host.$route;
-                    $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
+            parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $q);
+            if (!empty($q['stream'])) {
+                $streamName = (string)$q['stream'];
+                break;
+            }
+        }
+    }
+
+    if ($streamName !== '') {
+        $options = [
+            'https://tvf90.com/online.php?stream=' . rawurlencode($streamName),
+            'https://tvf90.com/5.php?stream=' . rawurlencode($streamName),
+            'https://streamxhd.sbs/live2.php?stream=' . rawurlencode($streamName),
+            'https://streamxhd.sbs/live1.php?stream=' . rawurlencode($streamName),
+        ];
+        foreach ($options as $opt) {
+            $sources[$opt] = ['url' => $opt, 'sourceKey' => fingerprint($opt)];
+        }
+    } else {
+        foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+            if(fulbito_player_url($source['url'])){
+                $url=fulbito_canonical($source['url']);
+                $path=substr($url,strlen('https://streamxhd.sbs'));
+                $automatic=str_replace('/live1.php?', '/live2.php?', $path);
+                foreach([$automatic,$path] as $route){
+                    foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
+                        $option='https://'.$host.$route;
+                        $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
+                    }
                 }
             }
         }
