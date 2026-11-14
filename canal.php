@@ -32,15 +32,21 @@ if (!$available) {
         html,body,#videoSection,#reproductor{width:100%;height:100%;margin:0;background:#000;color:#fff}
         body{font:16px system-ui,sans-serif}
         #videoSection{position:relative;overflow:hidden}
-        #signal-status{background:#202020;color:#fff;padding:10px;border:1px solid #777;border-radius:8px}
-        #signal-status{position:absolute;bottom:52px;left:8px;margin:0}
+        #signal-status{background:#111;color:#fff;padding:10px 14px;border:1px solid #444;border-radius:8px;font-size:14px}
+        #signal-status{position:absolute;bottom:52px;left:8px;margin:0;z-index:10}
+        .connecting-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;padding:20px;gap:12px}
+        .connecting-box p{margin:0;color:#ccc;font-size:15px}
     </style>
 </head>
 <body>
 <?php if (!$available): ?>
-    <p id="signal-status" role="status">Este canal no tiene una señal HLS directa configurada.</p>
+    <section id="videoSection">
+        <div class="connecting-box">
+            <p>Conectando señal con El Ciro TV…</p>
+        </div>
+    </section>
     <script>
-        if (parent !== window) parent.postMessage('elciro-clappr-unavailable', location.origin);
+        setTimeout(() => location.reload(), 2500);
     </script>
 <?php else: ?>
     <section id="videoSection">
@@ -54,20 +60,13 @@ if (!$available) {
         let source = <?= json_encode($source, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
         const endpoint = new URL(location.href);
         endpoint.searchParams.set('format', 'json');
-        const section = document.querySelector('#videoSection');
         const status = document.querySelector('#signal-status');
-        let player, timer, renewal, pending, attempts = 0, playingSince = null;
+        let player, timer, renewal, pending = false;
         let paused = false, reloadRequested = false;
 
         function showStatus(message) {
             status.textContent = message;
             status.hidden = !message;
-        }
-
-        function fallback() {
-            if (parent === window) return false;
-            parent.postMessage('elciro-clappr-unavailable', location.origin);
-            return true;
         }
 
         function scheduleRenewal(expiresAt) {
@@ -84,11 +83,6 @@ if (!$available) {
             pending = true;
             try {
                 const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
-                if (response.status === 410) {
-                    if (fallback()) return;
-                    showStatus('Señal no disponible.');
-                    return;
-                }
                 if (!response.ok) throw Error('Señal no disponible');
                 const next = await response.json();
                 scheduleRenewal(next.expires_at);
@@ -96,10 +90,11 @@ if (!$available) {
                     source = next.url;
                     player.load(source, null, !paused);
                 }
+                showStatus('');
             } catch {
                 if (reloadRequested) {
-                    if (fallback()) return;
-                    showStatus('La señal se interrumpió.');
+                    showStatus('Reconectando señal en tu reproductor…');
+                    renewal = setTimeout(() => void refresh(true), 3000);
                 } else {
                     renewal = setTimeout(() => void refresh(false), 30000);
                 }
@@ -110,8 +105,8 @@ if (!$available) {
         }
 
         function handleClapprError() {
-            if (fallback()) return;
-            showStatus('La señal no se pudo reproducir.');
+            showStatus('Reconectando transmisión…');
+            setTimeout(() => void refresh(true), 2000);
         }
 
         if (window.Clappr?.Player) {
@@ -131,14 +126,12 @@ if (!$available) {
                 if (!Number.isFinite(current) || current <= 0) return;
                 clearTimeout(timer);
                 timer = null;
-                playingSince ??= Date.now();
-                if (Date.now() - playingSince >= 10000) attempts = 0;
                 showStatus('');
             });
             scheduleRenewal(<?= json_encode($expiry) ?>);
         } else {
-            fallback();
-            showStatus('No se pudo cargar el reproductor.');
+            showStatus('Cargando reproductor…');
+            setTimeout(() => location.reload(), 2000);
         }
     </script>
 <?php endif; ?>

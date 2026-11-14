@@ -30,12 +30,16 @@ try {
                     break;
                 }
             }
+            if(preg_match('~/embed2?/([a-z0-9_-]+)\.php~i', $source['url'], $m)){
+                $streamName = $m[1];
+                break;
+            }
         }
         $streamName = $streamName ?: ($signal['slug'] ?? '');
-        if (($_GET['embed'] ?? null) !== '1' && $streamName !== '' && clappr_source($streamName)) {
-            respond(['transport'=>'clappr','channel'=>$streamName]);
+        if ($streamName === '') {
+            $streamName = embedlatam_alias(slugify($signal['name']));
         }
-        respond(external_playback($signal));
+        respond(['transport'=>'clappr','channel'=>$streamName]);
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';

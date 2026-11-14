@@ -1,5 +1,4 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261114d';
-import {createExternalPlayer} from './external-player.js?v=20261114g';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -35,77 +34,51 @@ addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí ↗</span></button>`).join('');}
 
-async function play(signal,signals,{refresh=false,embed=false}={}){
+async function play(signal,signals,{refresh=false}={}){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
-  const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
+  const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus');
   const fullscreen=section.querySelector('#fullscreen'),retry=section.querySelector('#providerRetry');
   const container=section.querySelector('.video-frame');
   section.hidden=false;
   container.parentElement.hidden=true;
   if(fullscreen)fullscreen.hidden=true;
   if(retry)retry.hidden=true;
-  if(next)next.hidden=true;
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
-  status.textContent='Cargando reproductor…';
+  status.textContent='Cargando reproductor de El Ciro TV…';
   try{
-    const source=embed
-      ? await api('play?embed=1&source='+encodeURIComponent(identity))
-      : await preparedPlayback.read(identity,{refresh});
+    const source=await preparedPlayback.read(identity,{refresh});
     if(!active())return;
-    if(source.transport==='clappr'){
-      const frame=document.createElement('iframe');
-      frame.className='external-player';
-      frame.title='Reproductor de El Ciro TV · '+signal.name;
-      frame.allow='autoplay; fullscreen';
-      frame.allowFullscreen=true;
-      frame.src='/canal.php?canal='+encodeURIComponent(source.channel);
-      const fallback=event=>{
-        if(!active()||event.origin!==location.origin||event.source!==frame.contentWindow
-          ||event.data!=='elciro-clappr-unavailable')return;
-        window.removeEventListener('message',fallback);
-        void play(signal,signals,{embed:true});
-      };
-      window.addEventListener('message',fallback);
-      player={destroy(){
-        window.removeEventListener('message',fallback);
-        frame.remove();
-      }};
-      container.replaceChildren(frame);
-      container.parentElement.hidden=false;
-      status.textContent=signal.name+' · Reproductor de El Ciro TV';
-      externalActive=true;
-      void heartbeat().then(refreshViewers);
-      section.scrollIntoView({behavior:'smooth',block:'start'});
-      return;
-    }
-    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor disponible.');
-    const signalLabel=({index,total})=>signal.name+(total>1?' · Servidor '+(index+1)+' de '+total:'');
-    player=createExternalPlayer({
-      container,sources:source.sources||[{url:source.url}],name:signal.name,
-      onChange({index,total,reason}){
-        if(!active())return;
-        status.textContent=reason==='retry'?'Reconectando señal…':signalLabel({index,total});
-        if(retry)retry.hidden=false;
-        if(next)next.hidden=total<=1;
-      },
-      onSlow(){if(active())status.textContent='Conectando con el servidor del partido…';},
-      onOffline(){if(active())status.textContent='Sin conexión a internet.';},
-      onLoad({index,total}){if(active())status.textContent=signalLabel({index,total});},
-    });
+    const channelName=source.channel||'espn';
+    const frame=document.createElement('iframe');
+    frame.className='external-player';
+    frame.title='Reproductor de El Ciro TV · '+signal.name;
+    frame.allow='autoplay; fullscreen';
+    frame.allowFullscreen=true;
+    frame.src='/canal.php?canal='+encodeURIComponent(channelName);
+    player={destroy(){frame.remove();}};
+    container.replaceChildren(frame);
     container.parentElement.hidden=false;
-    if(retry)retry.onclick=()=>player?.reload();
-    if(next)next.onclick=()=>player?.next();
+    status.textContent=signal.name+' · Reproductor de El Ciro TV';
+    if(retry){
+      retry.hidden=false;
+      retry.onclick=()=>{
+        frame.src='/canal.php?canal='+encodeURIComponent(channelName)+'&t='+Date.now();
+      };
+    }
     if(fullscreen)playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
-    externalActive=true;void heartbeat().then(refreshViewers);
-  }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
+    externalActive=true;
+    void heartbeat().then(refreshViewers);
+  }catch(error){
+    if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';
+  }
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
