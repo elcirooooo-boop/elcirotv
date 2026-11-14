@@ -6,6 +6,7 @@ import countryFlags from './country-flags-data.js';
 const escape = value => String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const key = value => String(value).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[øłđæß]/g,char=>({'ø':'o','ł':'l','đ':'d','æ':'ae','ß':'ss'}[char])).replace(/[^a-z0-9]+/g,' ').trim();
 const aliases = {
+  'basketball:men:12':['Los Angeles Clippers'],
   'soccer:men:167':['Olympique Lyonnais','Olympique Lyon'],
   'soccer:men:2994':['Sporting Braga'],
   'soccer:men:2528':['Kairat'],
@@ -119,10 +120,11 @@ export function teamBadge(name, league='') {
     : /\b(?:tenis|tennis|atp|wta|rugby|voleibol|volleyball|balonmano|handball|futsal|futbol sala|boxeo|boxing|ufc|mma|formula|motogp)\b/.test(competition) ? null : 'soccer';
   if(!sport)return null;
   const normalized = key(String(name).replace(/^#\d+\s*/, '')).replace(/\b(?:femenil|femenino|femenina|women|womens)\b/g,'').replace(/\s+/g,' ').trim();
-  const lookup=`${sport}:${gender}:${normalized}`;
+  const teamName=normalized==='alianza'&&/colombia/.test(competition)?'alianza fc':normalized;
+  const lookup=`${sport}:${gender}:${teamName}`;
   const strictLeague=[[/\bwnba\b/,'wnba'],[/\bnba\b/,'nba'],[/\bnfl\b/,'nfl'],[/\bnhl\b/,'nhl'],[/\bmlb\b/,'mlb'],[/liga endesa|\bacb\b/,'acb']].find(([pattern])=>pattern.test(competition))?.[1];
   if(strictLeague){const matches=[...(candidates.get(lookup)||[])].filter(t=>t.leagues?.includes(strictLeague));return matches.length===1?matches[0]:null;}
-  const leagues=[[/liga profesional|argentina/,'arg.1'],[/brasileir|brasil/,'bra.1'],[/primera a|colombia/,'col.1'],[/liga mx/,'mex.1'],[/laliga|liga espan/,'esp.1'],[/premier league/,'eng.1'],[/serie a/,'ita.1'],[/bundesliga/,'ger.1'],[/portugal|primeira liga/,'por.1'],[/ecuador/,'ecu.1'],[/paraguay/,'par.1'],[/costa rica/,'crc.1'],[/mls/,'usa.1']];
+  const leagues=[[/liga profesional|argentina/,'arg.1'],[/brasileir|brasil/,'bra.1'],[/primera a|colombia/,'col.1'],[/liga mx/,'mex.1'],[/laliga|liga espan/,'esp.1'],[/premier league/,'eng.1'],[/serie a/,'ita.1'],[/bundesliga/,'ger.1'],[/portugal|primeira liga/,'por.1'],[/ecuador/,'ecu.1'],[/paraguay/,'par.1'],[/uruguay/,'uru.1'],[/costa rica/,'crc.1'],[/mls/,'usa.1']];
   if(normalized==='san carlos'&&/costa rica/.test(competition))return [...(candidates.get(lookup)||[])].find(t=>t.id==='soccer:men:859')||null;
   const leagueCode=leagues.find(([pattern])=>pattern.test(competition))?.[1];
   if(leagueCode){const matches=[...(candidates.get(lookup)||[])].filter(t=>t.leagues?.includes(leagueCode));if(matches.length===1)return matches[0];}
@@ -132,6 +134,7 @@ export function teamBadge(name, league='') {
 export function suppliedLogo(value){
   if(typeof value!=='string'||value.length>2048)return null;
   try{const u=new URL(value);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;
+    if(u.hostname==='a.espncdn.com'&&u.pathname==='/i/teamlogos/nba/500/uta.png')u.pathname='/i/teamlogos/nba/500/utah.png';
     if(u.hostname==='a.espncdn.com'&&/^\/(?:i\/teamlogos\/|guid\/)/.test(u.pathname)||u.hostname==='upload.wikimedia.org'&&u.pathname.startsWith('/wikipedia/')||u.hostname==='r2.thesportsdb.com'&&u.pathname.startsWith('/images/media/'))return u.href;
   }catch{}return null;
 }
@@ -163,9 +166,13 @@ export function competitionBadge(event){
 function competitionMarkup(competition){
   return `<span class="match-badges competition-badge" aria-hidden="true" title="${escape(competition.label)}">${competition.logo?`<img data-team-badge data-fallback="/logos/sports.svg" src="${escape(competition.logo)}" alt="" width="64" height="40" loading="lazy"><span class="team-initials" hidden>DEP</span>`:''}<span class="competition-label">${escape(competition.label)}</span></span>`;
 }
+const selectionFlags = new Map([
+  ['republica de irlanda','ie'],['republic of ireland','ie'],
+  ['pais vasco','es-pv'],['euskadi','es-pv'],['euskal selekzioa','es-pv'],
+]);
 export function countryCode(name){
   const country=key(name).replace(/^seleccion (?:nacional )?(?:de )?/,'').replace(/\b(?:sub|u)\s*\d{1,2}\b/g,'').replace(/\b(?:femenil|femenino|femenina|women|womens|masculino|masculina)\b/g,'').replace(/\s+/g,' ').trim();
-  return countryFlags[country] || null;
+  return selectionFlags.get(country) || countryFlags[country] || null;
 }
 export function teamBadges(event) {
   const names = matchTeams(event);
