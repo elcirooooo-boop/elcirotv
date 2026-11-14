@@ -3,6 +3,9 @@ declare(strict_types=1);
 ini_set('display_errors','0');
 require_once __DIR__.'/server/common.php';
 require_once __DIR__.'/server/network.php';
+require_once __DIR__.'/server/embedlatam.php';
+require_once __DIR__.'/server/clappr.php';
+require_once __DIR__.'/server/playback.php';
 require_once __DIR__.'/server/agenda.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
@@ -13,7 +16,32 @@ if($action==='media')respond(['error'=>'Usa el reproductor externo. Recarga la p
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
-    if($action==='play')respond(['error'=>'Abre la página del partido en Streampk.net.'],410);
+    if($action==='play'){
+        $id=is_string($_GET['source']??null)?$_GET['source']:'';$signal=null;
+        $current=agenda();foreach($current['channels']??[] as $s)if($s['id']===$id){$signal=$s;break;}
+        if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
+        if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
+        if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
+        $streamName = '';
+        foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+            if(fulbito_player_url($source['url'])){
+                parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $params);
+                if (!empty($params['stream'])) {
+                    $streamName = (string)$params['stream'];
+                    break;
+                }
+            }
+            if(preg_match('~/embed2?/([a-z0-9_-]+)\.php~i', $source['url'], $m)){
+                $streamName = $m[1];
+                break;
+            }
+        }
+        $streamName = $streamName ?: ($signal['slug'] ?? '');
+        if ($streamName === '') {
+            $streamName = embedlatam_alias(slugify($signal['name']));
+        }
+        respond(['transport'=>'clappr','channel'=>$streamName]);
+    }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';
         if(!$origin||($origin['scheme']??'')!==$expectedScheme||strtolower(($origin['host']??'').(isset($origin['port'])?':'.$origin['port']:''))!==strtolower($host))respond(['error'=>'Origen no válido.'],403);
