@@ -21,7 +21,15 @@ async function load(){data=await api('agenda');}
 function showMatch(event){
   const destination=new URL(event.watchUrl);
   if(destination.origin!=='https://streampk.net')throw Error('El enlace del partido no está disponible.');
-  main.innerHTML=`<a class="back-link" href="/">← Todos los partidos</a>${intro(event.title,`${event.league} · ${scheduleText(event)}`)}<a id="watch" class="primary-button" href="${esc(destination.href)}" target="_blank" rel="noopener noreferrer">Ver partido en Streampk.net ↗</a>`;
+  main.innerHTML=`<a class="back-link" href="/">← Todos los partidos</a>${intro(event.title,`${event.league} · ${scheduleText(event)}`)}
+    <section id="match-player" aria-label="Reproductor de Streampk.net">
+      <div class="video-wrap streampk-player">
+        <iframe class="external-player" title="Streampk.net · ${esc(event.title)}" src="${esc(destination.href)}"
+          sandbox="allow-scripts allow-same-origin allow-presentation" allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+          allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      </div>
+      <p><a class="text-link" href="${esc(destination.href)}" target="_blank" rel="noopener noreferrer">Abrir en Streampk.net ↗</a></p>
+    </section>`;
   main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
   const badges=teamBadges(event);
   if(badges)main.querySelector('.intro h1').insertAdjacentHTML('beforebegin',`<div class="match-team-heading">${badges}</div>`);
@@ -39,7 +47,7 @@ function showMatch(event){
   };
   sharing.querySelector('[data-share]').onclick=async()=>report(await shareMatch(shareData));
   sharing.querySelector('[data-copy]').onclick=async()=>report(await copyShareLink(shareData));
-  main.querySelector('#watch').before(sharing);
+  main.querySelector('#match-player').before(sharing);
   document.title=shareData.title;
 }
 
@@ -49,7 +57,7 @@ function channelCatalog(){
 
 function listing(){
   const leagueOptions=()=>'<option value="">Todas las competiciones</option>'+[...new Set(visibleAgendaEvents(data.events).map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('');
-  main.innerHTML=intro('Tu próximo partido.','Consulta la agenda de Streampk.net y abre el partido que quieras ver.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido" placeholder="Equipo o liga…"></label><select id="league" aria-label="Filtrar por competición">${leagueOptions()}</select></div><div class="section-heading"><h2>Partidos disponibles</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
+  main.innerHTML=intro('Tu próximo partido.','Elige un partido de la agenda de Streampk.net.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido" placeholder="Equipo o liga…"></label><select id="league" aria-label="Filtrar por competición">${leagueOptions()}</select></div><div class="section-heading"><h2>Partidos disponibles</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
   const update=()=>{
     const term=main.querySelector('#search').value.toLocaleLowerCase(),league=main.querySelector('#league')?.value;
     const events=visibleAgendaEvents(data.events);
