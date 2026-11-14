@@ -5,6 +5,7 @@ require __DIR__.'/server/common.php';
 require __DIR__.'/server/network.php';
 require __DIR__.'/server/agenda.php';
 require __DIR__.'/server/playback.php';
+require __DIR__.'/server/clappr.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
@@ -20,6 +21,12 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
+        if (fulbito_player_url($signal['url'] ?? '')) {
+            parse_str(parse_url($signal['url'], PHP_URL_QUERY) ?? '', $params);
+            if (($_GET['embed'] ?? null) !== '1' && clappr_source($params['stream'])) {
+                respond(['transport'=>'clappr','channel'=>$params['stream']]);
+            }
+        }
         respond(external_playback($signal));
     }
     if($action==='presence'){

@@ -34,7 +34,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí ↗</span></button>`).join('');}
-async function play(signal,signals,{refresh=false}={}){
+async function play(signal,signals,{refresh=false,embed=false}={}){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
@@ -44,10 +44,37 @@ async function play(signal,signals,{refresh=false}={}){
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
-  status.textContent='Cargando reproductor externo del proveedor…';
+  status.textContent='Cargando reproductor…';
   try{
-    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
-    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
+    const source=embed
+      ? await api('play?embed=1&source='+encodeURIComponent(identity))
+      : await preparedPlayback.read(identity,{refresh});
+    if(!active())return;
+    if(source.transport==='clappr'){
+      const frame=document.createElement('iframe');
+      frame.className='external-player';
+      frame.title='Reproductor de El Ciro TV · '+signal.name;
+      frame.allow='autoplay; fullscreen';
+      frame.allowFullscreen=true;
+      frame.src='/canal.php?canal='+encodeURIComponent(source.channel);
+      const fallback=event=>{
+        if(!active()||event.origin!==location.origin||event.source!==frame.contentWindow
+          ||event.data!=='elciro-clappr-unavailable')return;
+        void play(signal,signals,{embed:true});
+      };
+      window.addEventListener('message',fallback);
+      player={destroy(){
+        window.removeEventListener('message',fallback);
+        frame.remove();
+      }};
+      section.querySelector('.video-frame').replaceChildren(frame);
+      status.textContent=signal.name+' · Reproductor de El Ciro TV';
+      externalActive=true;
+      void heartbeat().then(refreshViewers);
+      section.scrollIntoView({behavior:'smooth',block:'start'});
+      return;
+    }
+    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor disponible.');
     const signalLabel=({index,total})=>signal.name+(total>1?' · Servidor '+(index+1)+' de '+total:'');
     player=createExternalPlayer({
       container:section.querySelector('.video-frame'),sources:source.sources||[{url:source.url}],name:signal.name,
