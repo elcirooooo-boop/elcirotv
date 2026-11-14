@@ -40,7 +40,6 @@ if (!$available) {
 <body>
 <?php if (!$available): ?>
     <p id="signal-status" role="status">Este canal no tiene una señal HLS vigente.</p>
-    <script>if (parent !== window) parent.postMessage('elciro-clappr-unavailable', location.origin);</script>
 <?php else: ?>
     <section id="videoSection">
         <div id="reproductor"></div>
@@ -85,7 +84,11 @@ if (!$available) {
             pending = true;
             try {
                 const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
-                if (response.status === 410 && fallback()) return;
+                if (response.status === 410) {
+                    retry.hidden = false;
+                    showStatus('Señal no disponible.');
+                    return;
+                }
                 if (!response.ok) throw Error('Señal no disponible');
                 const next = await response.json();
                 scheduleRenewal(next.expires_at);
@@ -102,18 +105,11 @@ if (!$available) {
             }
         }
 
-        function fallback() {
-            if (parent === window) return false;
-            parent.postMessage('elciro-clappr-unavailable', location.origin);
-            return true;
-        }
-
         function recover() {
             if (timer) return;
             playingSince = null;
             retry.hidden = false;
             if (attempts >= 2) {
-                if (fallback()) return;
                 showStatus('La señal se interrumpió. Pulsa Recargar señal para volver a intentarlo.');
                 return;
             }
@@ -153,7 +149,6 @@ if (!$available) {
             scheduleRenewal(<?= json_encode($expiry) ?>);
         } else {
             fullscreen.hidden = true;
-            fallback();
             showStatus('No se pudo cargar el reproductor. Vuelve a abrir este canal.');
         }
     </script>

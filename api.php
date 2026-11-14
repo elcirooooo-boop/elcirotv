@@ -4,14 +4,13 @@ ini_set('display_errors','0');
 require __DIR__.'/server/common.php';
 require __DIR__.'/server/network.php';
 require __DIR__.'/server/agenda.php';
-require __DIR__.'/server/playback.php';
 require __DIR__.'/server/clappr.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
 if(!is_string($action)||!in_array($action,['agenda','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
 $method=$action==='presence'?'POST':'GET';if(($_SERVER['REQUEST_METHOD']??'')!==$method){header('Allow: '.$method);respond(['error'=>'Método no permitido.'],405);}
-if($action==='media')respond(['error'=>'Usa el reproductor externo. Recarga la página.'],410);
+if($action==='media')respond(['error'=>'Usa el reproductor de El Ciro TV.'],410);
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
@@ -23,11 +22,11 @@ try {
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
         if (fulbito_player_url($signal['url'] ?? '')) {
             parse_str(parse_url($signal['url'], PHP_URL_QUERY) ?? '', $params);
-            if (($_GET['embed'] ?? null) !== '1' && clappr_source($params['stream'])) {
+            if (clappr_source($params['stream'])) {
                 respond(['transport'=>'clappr','channel'=>$params['stream']]);
             }
         }
-        respond(external_playback($signal));
+        respond(['error'=>'Señal no disponible.'], 410);
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';

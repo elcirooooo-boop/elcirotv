@@ -32,6 +32,6 @@ Para habilitar Clappr para un canal, guarda `private-channels.json` en el direct
 }
 ```
 
-Para una URL permanente, omite `expiresAt`. Si la señal vence o Clappr agota sus reintentos, la página del partido abre el reproductor de StreamXHD.
+Para una URL permanente, omite `expiresAt`. Si falta una señal HLS vigente, la página muestra «Señal no disponible».
 
 En el equipo de desarrollo, con las dependencias de `netlify-site` instaladas: `node hostinger-php/build.mjs`. El resultado queda en `hostinger-package/public_html`. Crea el ZIP con **el contenido** de esa carpeta, incluyendo `.htaccess`.

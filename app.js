@@ -1,5 +1,3 @@
-import {createPlayerFullscreen} from './fullscreen.js?v=20261114c';
-import {createExternalPlayer} from './external-player.js?v=20261114c';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -11,7 +9,7 @@ document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,player,playerFullscreen,externalActive=false;
+let playerGeneration=0,player,externalActive=false;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,selected='',currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
@@ -28,77 +26,56 @@ function heartbeat(){
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Personas con la transmisión abierta, aproximadamente">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){externalActive=false;playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;selected='';}
+function stop(){externalActive=false;playerGeneration++;player?.destroy();player=null;selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí ↗</span></button>`).join('');}
-async function play(signal,signals,{refresh=false,embed=false}={}){
-  stop();selected=signal.id;const generation=playerGeneration,identity=selected;
+async function play(signal,{refresh=false}={}){
+  stop();
+  selected=signal.id;
+  const generation=playerGeneration;
+  const active=()=>playerGeneration===generation;
   updateMatchShare(signal);
-  const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
-  const fullscreen=section.querySelector('#fullscreen'),retry=section.querySelector('#providerRetry');
+  const section=document.querySelector('#videoSection');
+  const status=section.querySelector('#signalStatus');
+  const retry=section.querySelector('#providerRetry');
+  const container=section.querySelector('.video-frame');
   section.hidden=false;
-  fullscreen.hidden=true;retry.hidden=true;next.hidden=true;
-
-  document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
-  const active=()=>playerGeneration===generation&&selected===identity;
+  container.parentElement.hidden=true;
+  retry.hidden=true;
+  retry.onclick=()=>void play(signal,{refresh:true});
+  document.querySelectorAll('[data-signal]').forEach(button=>{
+    button.setAttribute('aria-pressed',String(button.dataset.signal===signal.id));
+  });
   status.textContent='Cargando reproductor…';
-  try{
-    const source=embed
-      ? await api('play?embed=1&source='+encodeURIComponent(identity))
-      : await preparedPlayback.read(identity,{refresh});
+  try {
+    const source=await preparedPlayback.read(signal.id,{refresh});
     if(!active())return;
-    if(source.transport==='clappr'){
-      const frame=document.createElement('iframe');
-      frame.className='external-player';
-      frame.title='Reproductor de El Ciro TV · '+signal.name;
-      frame.allow='autoplay; fullscreen';
-      frame.allowFullscreen=true;
-      frame.src='/canal.php?canal='+encodeURIComponent(source.channel);
-      const fallback=event=>{
-        if(!active()||event.origin!==location.origin||event.source!==frame.contentWindow
-          ||event.data!=='elciro-clappr-unavailable')return;
-        void play(signal,signals,{embed:true});
-      };
-      window.addEventListener('message',fallback);
-      player={destroy(){
-        window.removeEventListener('message',fallback);
-        frame.remove();
-      }};
-      section.querySelector('.video-frame').replaceChildren(frame);
-      status.textContent=signal.name+' · Reproductor de El Ciro TV';
-      externalActive=true;
-      void heartbeat().then(refreshViewers);
-      section.scrollIntoView({behavior:'smooth',block:'start'});
-      return;
-    }
-    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor disponible.');
-    const signalLabel=({index,total})=>signal.name+(total>1?' · Servidor '+(index+1)+' de '+total:'');
-    player=createExternalPlayer({
-      container:section.querySelector('.video-frame'),sources:source.sources||[{url:source.url}],name:signal.name,
-      onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},
-      onChange:info=>{
-        next.hidden=info.total<2;
-        status.textContent=signalLabel(info)+' · Cargando…';
-      },
-      onLoad:info=>{if(active())status.textContent=signalLabel(info)+' · Toca reproducir dentro del vídeo.';},
-      onSlow:info=>{
-        if(active())status.textContent=signalLabel(info)+' · Está tardando en abrir. '+(info.total>1?'Puedes cambiar de servidor.':'Puedes recargar la señal.');
-      },
-    });
-    fullscreen.hidden=false;retry.hidden=false;
-    retry.onclick=()=>player?.reload();
-    next.onclick=()=>player?.next();
-    playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
-    externalActive=true;void heartbeat().then(refreshViewers);
-  }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
-  if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
+    if(source.transport!=='clappr')throw Error('Señal no disponible.');
+    const frame=document.createElement('iframe');
+    frame.className='external-player';
+    frame.title='Reproductor de El Ciro TV · '+signal.name;
+    frame.allow='autoplay; fullscreen';
+    frame.allowFullscreen=true;
+    frame.src='/canal.php?canal='+encodeURIComponent(source.channel);
+    container.replaceChildren(frame);
+    container.parentElement.hidden=false;
+    player={destroy:()=>frame.remove()};
+    status.textContent=signal.name+' · Reproductor de El Ciro TV';
+    externalActive=true;
+    void heartbeat().then(refreshViewers);
+  } catch(error) {
+    if(!active())return;
+    status.textContent=error.message||'Señal no disponible.';
+    retry.hidden=false;
+  }
+  section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
@@ -126,15 +103,9 @@ function chooser(event,signals){
     document.title=getShareData().title;
   }
   const initial=event?sharedSignal(event,location.search)||signals[0]:signals[0];
-  if(initial&&data.provider==='streamxhd'&&!document.querySelector('link[data-player-preconnect]')){
-    const connection=document.createElement('link');
-    connection.rel='preconnect';
-    connection.href='https://streamxhd.sbs';
-    connection.dataset.playerPreconnect='';
-    document.head.append(connection);
-  }
+
   if(initial&&data.provider!=='futbolvivo')void preparedPlayback.prepare(initial.id);
-  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
+  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal));});
 }
 function listing(channels=false){
   const leagueOptions=()=>'<option value="">Todas las competiciones</option>'+[...new Set(visibleAgendaEvents(data.events).map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('');
@@ -167,7 +138,7 @@ async function render(){
       const requested=new URLSearchParams(location.search).get('canal');
       if(requested){
         const signal=sharedSignal(event,location.search);
-        if(signal)void play(signal,event.signals);
+        if(signal)void play(signal);
         else{
           const notice=document.createElement('p');notice.className='player-note';notice.setAttribute('role','status');notice.textContent='El canal compartido ya no está disponible para este partido. Selecciona otro canal de la lista.';main.querySelector('.match-channels').before(notice);
         }
