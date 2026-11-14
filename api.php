@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 ini_set('display_errors','0');
-require __DIR__.'/server/common.php';
-require __DIR__.'/server/network.php';
-require __DIR__.'/server/agenda.php';
-require __DIR__.'/server/playback.php';
-require __DIR__.'/server/clappr.php';
+require_once __DIR__.'/server/common.php';
+require_once __DIR__.'/server/network.php';
+require_once __DIR__.'/server/embedlatam.php';
+require_once __DIR__.'/server/clappr.php';
+require_once __DIR__.'/server/playback.php';
+require_once __DIR__.'/server/agenda.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';

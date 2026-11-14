@@ -1,8 +1,38 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/clappr.php';
+
+require_once __DIR__.'/common.php';
+require_once __DIR__.'/network.php';
 
 const EMBEDLATAM_ORIGIN='https://embed.ksdjugfssddeports.com';
+
+if (!function_exists('embedlatam_fetch')) {
+    function embedlatam_fetch(string $url): ?string {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_TIMEOUT => 7,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_ENCODING => '',
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_HTTPHEADER => [
+                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer: https://embed.ksdjugfssddeports.com/',
+                'Origin: https://embed.ksdjugfssddeports.com'
+            ]
+        ]);
+        $body = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($status === 200 && is_string($body) && $body !== '') {
+            return $body;
+        }
+        return null;
+    }
+}
 
 function embedlatam_player_url(string $url): bool {
     $p=parse_url($url);
@@ -145,11 +175,11 @@ function normalize_embedlatam_channels(string $html): array {
 }
 
 function embedlatam_catalogue(): array {
-    $key='embedlatam-channels-v3';
+    $key='embedlatam-channels-v4';
     $old=cached_read($key);
     if(time()-($old['loaded']??0)<300 && !empty($old['channels']))return ['channels'=>$old['channels'],'stale'=>false];
     try{
-        $html = function_exists('embedlatam_fetch') ? embedlatam_fetch(EMBEDLATAM_ORIGIN.'/') : null;
+        $html = embedlatam_fetch(EMBEDLATAM_ORIGIN.'/');
         if(!$html){
             $r=net_request(EMBEDLATAM_ORIGIN.'/','','',2000000,8);
             if($r['status']!==200){fclose($r['stream']);throw new RuntimeException('CATALOGUE_HTTP');}

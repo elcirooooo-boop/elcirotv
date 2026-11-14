@@ -15,30 +15,32 @@ function clappr_channels(): array {
     return $channels;
 }
 
-function embedlatam_fetch(string $url): ?string {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 3,
-        CURLOPT_TIMEOUT => 7,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_ENCODING => '', // Fast gzip/deflate decoding
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => 0,
-        CURLOPT_HTTPHEADER => [
-            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Referer: https://embed.ksdjugfssddeports.com/',
-            'Origin: https://embed.ksdjugfssddeports.com'
-        ]
-    ]);
-    $body = curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
-    if ($status === 200 && is_string($body) && $body !== '') {
-        return $body;
+if (!function_exists('embedlatam_fetch')) {
+    function embedlatam_fetch(string $url): ?string {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_TIMEOUT => 7,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_ENCODING => '', // Fast gzip/deflate decoding
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_HTTPHEADER => [
+                'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Referer: https://embed.ksdjugfssddeports.com/',
+                'Origin: https://embed.ksdjugfssddeports.com'
+            ]
+        ]);
+        $body = curl_exec($ch);
+        $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+        if ($status === 200 && is_string($body) && $body !== '') {
+            return $body;
+        }
+        return null;
     }
-    return null;
 }
 
 function embedlatam_clean_iframe_url(string $channel): ?string {
