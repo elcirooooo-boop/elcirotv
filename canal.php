@@ -30,8 +30,6 @@ if (!$available) {
         html,body,#videoSection,#reproductor{width:100%;height:100%;margin:0;background:#000;color:#fff}
         body{font:16px system-ui,sans-serif}
         #videoSection{position:relative;overflow:hidden}
-        #videoSection.player-expanded{position:fixed;top:var(--player-top,0);left:var(--player-left,0);width:var(--player-width,100%);height:var(--player-height,100%);z-index:2}
-        #videoSection.player-landscape{width:var(--player-height,100dvh);height:var(--player-width,100vw);transform-origin:top left;transform:translateX(var(--player-width,100vw)) rotate(90deg)}
         #controls{position:absolute;z-index:1;top:8px;right:8px;display:flex;gap:8px}
         button,#signal-status{background:#202020;color:#fff;padding:10px;border:1px solid #777;border-radius:8px}
         #signal-status{position:absolute;bottom:52px;left:8px;margin:0}
@@ -45,7 +43,6 @@ if (!$available) {
         <div id="reproductor"></div>
         <div id="controls">
             <button id="retry" type="button" hidden>Recargar señal</button>
-            <button id="fullscreen" type="button">Pantalla completa</button>
         </div>
         <p id="signal-status" role="status" hidden></p>
     </section>
@@ -53,13 +50,11 @@ if (!$available) {
             integrity="sha384-UUsQc5DCDR++qHLuZ9gQb8CJoHwSIEQfox+vSkgR0eK2mrF8oWOXZS0NpCiMtY4z"
             crossorigin="anonymous"></script>
     <script type="module">
-        import {createPlayerFullscreen} from '/fullscreen.js?v=20261114c';
 
         let source = <?= json_encode($source, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
         const endpoint = new URL(location.href);
         endpoint.searchParams.set('format', 'json');
         const section = document.querySelector('#videoSection');
-        const fullscreen = document.querySelector('#fullscreen');
         const status = document.querySelector('#signal-status');
         const retry = document.querySelector('#retry');
         let player, timer, renewal, pending, attempts = 0, playingSince = null;
@@ -145,10 +140,8 @@ if (!$available) {
                 paused = false;
                 void refresh(true);
             };
-            createPlayerFullscreen({section, button: fullscreen});
             scheduleRenewal(<?= json_encode($expiry) ?>);
         } else {
-            fullscreen.hidden = true;
             showStatus('No se pudo cargar el reproductor. Vuelve a abrir este canal.');
         }
     </script>
