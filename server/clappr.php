@@ -24,10 +24,20 @@ function clappr_source(string $channel): ?array {
         $expiry = is_string($source['expiresAt']) ? strtotime($source['expiresAt']) : false;
     }
     $url = is_array($source) ? ($source['url'] ?? null) : $source;
-    if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) return null;
-    $parts = parse_url($url);
-    if (($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass'])
-        || !preg_match('~\.m3u8$~i', $parts['path'] ?? '')
-        || ($expiry !== null && (!is_int($expiry) || $expiry <= time() + 30))) return null;
-    return ['url'=>$url, 'expires_at'=>$expiry];
+    if (is_string($url) && filter_var($url, FILTER_VALIDATE_URL)) {
+        $parts = parse_url($url);
+        $host = strtolower($parts['host'] ?? '');
+        // Excluir hosts con protección anti-leech basada en IP (ftlly.com, futlivehd.com)
+        // que rechazan a los visitantes con 403 Forbidden
+        if (str_ends_with($host, 'ftlly.com') || str_ends_with($host, 'futlivehd.com')) {
+            return null;
+        }
+        if (($parts['scheme'] ?? '') === 'https' && !isset($parts['user']) && !isset($parts['pass'])
+            && preg_match('~\.m3u8$~i', $parts['path'] ?? '')
+            && ($expiry === null || (is_int($expiry) && $expiry > time() + 30))) {
+            return ['url'=>$url, 'expires_at'=>$expiry];
+        }
+    }
+
+    return null;
 }
