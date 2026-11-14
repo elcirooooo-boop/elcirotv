@@ -15,6 +15,10 @@ function external_playback(array $signal): array {
 
     $slug = embedlatam_alias(strtolower(trim($streamName ?: ($signal['slug'] ?? ''))));
     if ($slug !== '') {
+        $clean = function_exists('embedlatam_clean_iframe_url') ? embedlatam_clean_iframe_url($slug) : null;
+        if ($clean) {
+            $sources[$clean] = ['url' => $clean, 'sourceKey' => fingerprint($clean)];
+        }
         $options = [
             'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php',
             'https://embed.ksdjugfssddeports.com/embed/' . rawurlencode($slug) . '.php',

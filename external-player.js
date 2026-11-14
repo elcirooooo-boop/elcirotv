@@ -1,9 +1,8 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('URL no válida.');
-  if(url.hostname!=='embed.ksdjugfssddeports.com')throw Error('Servidor no autorizado.');
-  if(!/^\/embed2?\/[a-z0-9_-]+\.php$/i.test(url.pathname))throw Error('Ruta no autorizada.');
-  return 'https://' + url.hostname + url.pathname;
+  if(url.hostname!=='embed.ksdjugfssddeports.com'&&url.hostname!=='deportes.ksdjugfssddeports.com')throw Error('Servidor no autorizado.');
+  return url.href;
 }
 // Recover only after an observed connection loss; never restart a healthy stream on a timer.
 export function watchPlayerConnection({window=globalThis.window,document=globalThis.document,onOffline=()=>{},onReconnect=()=>{},setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout}){

@@ -1,5 +1,5 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261114d';
-import {createExternalPlayer} from './external-player.js?v=20261114f';
+import {createExternalPlayer} from './external-player.js?v=20261114g';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';

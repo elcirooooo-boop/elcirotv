@@ -7,47 +7,20 @@ require_once __DIR__.'/server/common.php';
 require_once __DIR__.'/server/network.php';
 require_once __DIR__.'/server/embedlatam.php';
 require_once __DIR__.'/server/clappr.php';
+require_once __DIR__.'/server/playback.php';
 
-try {
-    echo "Testing storage(): " . storage() . "\n";
-} catch (Throwable $e) {
-    echo "Storage error: " . $e->getMessage() . "\n";
+echo "Testing storage(): " . storage() . "\n";
+
+echo "\n--- Testing clappr_source('espn') ---\n";
+$source = clappr_source('espn');
+if ($source) {
+    echo "SUCCESS: Found stream!\n";
+    echo "URL: " . $source['url'] . "\n";
+    echo "Expires: " . date('Y-m-d H:i:s', $source['expires_at']) . "\n";
+} else {
+    echo "FAILED: clappr_source('espn') returned null\n";
 }
 
-echo "Testing embedlatam_stream_url('espn')...\n";
-
-$slug = embedlatam_alias('espn');
-echo "Slug: $slug\n";
-
-$embedUrl = 'https://embed.ksdjugfssddeports.com/embed2/' . rawurlencode($slug) . '.php';
-echo "Embed URL: $embedUrl\n";
-
-try {
-    echo "Attempting net_request on $embedUrl...\n";
-    $embedRes = net_request($embedUrl, 'https://embed.ksdjugfssddeports.com/', '', 1000000, 5);
-    echo "Embed status: " . $embedRes['status'] . "\n";
-    $embedHtml = read_text($embedRes);
-    echo "Embed HTML length: " . strlen($embedHtml) . "\n";
-    if (preg_match('~<iframe[^>]+src=["\']([^"\']*stream\.php[^"\']*)["\']~i', $embedHtml, $mIframe)) {
-        echo "Found iframe stream: " . $mIframe[1] . "\n";
-        $streamUrl = str_replace('&amp;', '&', $mIframe[1]);
-        $streamRes = net_request($streamUrl, 'https://embed.ksdjugfssddeports.com/', '', 1000000, 5);
-        echo "Stream status: " . $streamRes['status'] . "\n";
-        $streamHtml = read_text($streamRes);
-        echo "Stream HTML length: " . strlen($streamHtml) . "\n";
-        if (preg_match('~https?://[^\s"\'<>]+\.m3u8(?:\?[^\s"\'<>]*)?~i', $streamHtml, $mM3u8)) {
-            echo "Found m3u8: " . $mM3u8[0] . "\n";
-        } else {
-            echo "No m3u8 found in stream HTML\n";
-            echo "Preview:\n" . substr($streamHtml, 0, 500) . "\n";
-        }
-    } else {
-        echo "No stream.php iframe found in embed HTML\n";
-        echo "Preview:\n" . substr($embedHtml, 0, 500) . "\n";
-    }
-} catch (Throwable $e) {
-    echo "Caught exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine() . "\n";
-    echo $e->getTraceAsString() . "\n";
-}
-
-
+echo "\n--- Testing embedlatam_clean_iframe_url('espn') ---\n";
+$iframeUrl = embedlatam_clean_iframe_url('espn');
+echo "Clean Iframe URL: " . ($iframeUrl ?: 'FAILED') . "\n";

@@ -31,6 +31,7 @@ try {
                 }
             }
         }
+        $streamName = $streamName ?: ($signal['slug'] ?? '');
         if (($_GET['embed'] ?? null) !== '1' && $streamName !== '' && clappr_source($streamName)) {
             respond(['transport'=>'clappr','channel'=>$streamName]);
         }
