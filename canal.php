@@ -36,12 +36,7 @@ if (!$available) {
 </head>
 <body>
 <?php if (!$available): ?>
-    <p id="signal-status" role="status">Este canal no tiene una señal HLS directa configurada.</p>
-    <script>
-        if (parent !== window) {
-            parent.postMessage('elciro-clappr-unavailable', location.origin);
-        }
-    </script>
+    <p id="signal-status" role="status">Este canal no tiene una señal HLS vigente.</p>
 <?php else: ?>
     <section id="videoSection">
         <div id="reproductor"></div>
@@ -51,6 +46,7 @@ if (!$available) {
             integrity="sha384-UUsQc5DCDR++qHLuZ9gQb8CJoHwSIEQfox+vSkgR0eK2mrF8oWOXZS0NpCiMtY4z"
             crossorigin="anonymous"></script>
     <script type="module">
+
         let source = <?= json_encode($source, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) ?>;
         const endpoint = new URL(location.href);
         endpoint.searchParams.set('format', 'json');
@@ -62,12 +58,6 @@ if (!$available) {
         function showStatus(message) {
             status.textContent = message;
             status.hidden = !message;
-        }
-
-        function fallback() {
-            if (parent === window) return false;
-            parent.postMessage('elciro-clappr-unavailable', location.origin);
-            return true;
         }
 
         function scheduleRenewal(expiresAt) {
@@ -85,7 +75,6 @@ if (!$available) {
             try {
                 const response = await fetch(endpoint, {cache: 'no-store', signal: AbortSignal.timeout(8000)});
                 if (response.status === 410) {
-                    if (fallback()) return;
                     showStatus('Señal no disponible.');
                     return;
                 }
@@ -97,34 +86,34 @@ if (!$available) {
                     player.load(source, null, !paused);
                 }
             } catch {
-                if (reloadRequested) {
-                    if (fallback()) return;
-                    showStatus('La señal se interrumpió.');
-                } else {
-                    renewal = setTimeout(() => void refresh(false), 30000);
-                }
+                if (reloadRequested) recover();
+                else renewal = setTimeout(() => void refresh(false), 30000);
             } finally {
                 pending = false;
                 reloadRequested = false;
             }
         }
 
-        function handleClapprError() {
-            if (fallback()) return;
-            showStatus('La señal no se pudo reproducir.');
+        function recover() {
+            if (timer) return;
+            playingSince = null;
+            if (attempts >= 2) {
+                showStatus('La señal se interrumpió.');
+                return;
+            }
+            attempts++;
+            showStatus('Recuperando señal…');
+            timer = setTimeout(() => {
+                timer = null;
+                void refresh(true);
+            }, 1500 * attempts);
         }
 
         if (window.Clappr?.Player) {
             player = new Clappr.Player({
-                source,
-                parentId: '#reproductor',
-                autoPlay: true,
-                width: '100%',
-                height: '100%',
-                mediacontrol: {seekbar: '#00cfff', buttons: '#FFFFFF'},
+                source, parentId: '#reproductor', autoPlay: true, width: '100%', height: '100%',
             });
-            player.on(Clappr.Events.PLAYER_ERROR, handleClapprError);
-            player.on(Clappr.Events.PLAYBACK_ERROR, handleClapprError);
+            player.on(Clappr.Events.PLAYER_ERROR, recover);
             player.on(Clappr.Events.PLAYER_PAUSE, () => { paused = true; });
             player.on(Clappr.Events.PLAYER_PLAY, () => { paused = false; });
             player.on(Clappr.Events.PLAYER_TIMEUPDATE, ({current} = {}) => {
@@ -137,8 +126,7 @@ if (!$available) {
             });
             scheduleRenewal(<?= json_encode($expiry) ?>);
         } else {
-            fallback();
-            showStatus('No se pudo cargar el reproductor.');
+            showStatus('No se pudo cargar el reproductor. Vuelve a abrir este canal.');
         }
     </script>
 <?php endif; ?>
