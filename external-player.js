@@ -1,3 +1,4 @@
+let startupReloaded=false;
 export function providerPlayerURL(value){
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)||!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
@@ -23,9 +24,28 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame,timeout;
   let triedRecovery=false;
+  let startupTimer;
+  const startupKey='elciro-streamxhd-startup-reloaded-v1';
+  try{startupReloaded||=window?.sessionStorage?.getItem(startupKey)==='1';}catch{}
+  const finishStartup=()=>{
+    timers.clearTimeout(startupTimer);startupTimer=undefined;startupReloaded=true;
+    try{window?.sessionStorage?.setItem(startupKey,'1');}catch{}
+  };
+  // One initial reload after interaction, matching the viewer's successful manual workaround.
+  // The cross-origin embed does not expose its video state to this page.
+  const armStartupRecovery=()=>{
+    if(disposed||startupReloaded||startupTimer!==undefined||document.hidden)return;
+    startupTimer=timers.setTimeout(()=>{
+      startupTimer=undefined;
+      if(disposed||startupReloaded||document.hidden||window?.navigator?.onLine===false||document.activeElement!==frame)return;
+      finishStartup();
+      open('startup-recovery');
+    },3000);
+  };
   const clearLoadTimer=()=>timers.clearTimeout(timeout);
   const open=(reason='open')=>{
     if(disposed)return;
+    timers.clearTimeout(startupTimer);startupTimer=undefined;
     clearLoadTimer();
     frame?.remove();
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
@@ -33,6 +53,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     frame.setAttribute('sandbox','allow-scripts allow-same-origin');
     frame.setAttribute('allow',"autoplay; encrypted-media; fullscreen; picture-in-picture; camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; payment 'none'; usb 'none'");
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
+    frame.addEventListener('focus',armStartupRecovery);
     const current=frame;
     let loaded=false,lastReload;
     current.onload=()=>{
@@ -66,6 +87,8 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     onChange({url:urls[index],index,total:urls.length,reason});
   };
   open();
+  window?.addEventListener('blur',armStartupRecovery);
+  document.addEventListener('visibilitychange',armStartupRecovery);
   const connection=watchPlayerConnection({window,document,onOffline:()=>{clearLoadTimer();onOffline();},onReconnect:()=>open('reconnect')});
-  return {reload(){if(disposed)return;connection.reset();triedRecovery=false;open('retry');},next(){if(disposed)return;connection.reset();triedRecovery=false;index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();clearLoadTimer();frame.onload=null;frame.src='about:blank';frame.remove();}};
+  return {reload(){if(disposed)return;finishStartup();connection.reset();triedRecovery=false;open('retry');},next(){if(disposed)return;finishStartup();connection.reset();triedRecovery=false;index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();window?.removeEventListener('blur',armStartupRecovery);document.removeEventListener('visibilitychange',armStartupRecovery);timers.clearTimeout(startupTimer);clearLoadTimer();frame.onload=null;frame.src='about:blank';frame.remove();}};
 }

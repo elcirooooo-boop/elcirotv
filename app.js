@@ -1,5 +1,5 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261114c';
-import {createExternalPlayer} from './external-player.js?v=20261115f';
+import {createExternalPlayer} from './external-player.js?v=20261115g';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -56,7 +56,7 @@ async function play(signal,signals,{refresh=false}={}){
       onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},
       onChange:info=>{
         next.hidden=info.total<2;
-        status.textContent=signalLabel(info)+(info.reason==='recovery'?' · Recuperando la señal…':' · Cargando…');
+        status.textContent=signalLabel(info)+(info.reason==='startup-recovery'?' · Reiniciando el reproductor de inicio…':info.reason==='recovery'?' · Recuperando la señal…':' · Cargando…');
       },
       onLoad:info=>{if(active())status.textContent=signalLabel(info)+' · Toca reproducir dentro del vídeo.';},
       onSlow:info=>{
