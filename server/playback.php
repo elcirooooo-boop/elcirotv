@@ -1,5 +1,34 @@
 <?php
 declare(strict_types=1);
+function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
+    $page=null;
+    foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+        if(fulbito_player_url($source['url'])){$page=fulbito_canonical($source['url']);break;}
+    }
+    if($page===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    $key='streamxhd-relay-v2-'.fingerprint($page);
+    $cached=cached_read($key);
+    if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    $usable=static fn($entry)=>isset($entry['resolved'])&&($entry['until']??0)>time()&&(!$refresh||time()-($entry['loaded']??0)<10);
+    if(!$usable($cached)){
+        $lock=fopen(storage().'/'.$key.'.lock','c');
+        if(!$lock)throw new RuntimeException('MEDIA_BUSY');
+        if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);throw new RuntimeException('MEDIA_BUSY');}
+        try{
+            $cached=cached_read($key);
+            if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
+            if(!$usable($cached)){
+                try{$resolved=resolve_player($page);probe_playlist($resolved,true);}
+                catch(Throwable $error){cached_write($key,['until'=>time()+20,'error'=>'CHANNEL_UNAVAILABLE']);throw $error;}
+                $cached=['loaded'=>time(),'until'=>time()+120,'resolved'=>$resolved];
+                cached_write($key,$cached);
+            }
+        }finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
+    $expiry=(int)(ceil(time()/300)*300)+21600;
+    return ['transport'=>'relay','url'=>'/api/media?t='.rawurlencode(grant_media($cached['resolved']['url'],$page,$expiry)),
+        'sourceKey'=>fingerprint($page),'expiresAt'=>iso($expiry),'renewInSeconds'=>300];
+}
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
         if(fulbito_player_url($source['url'])){
