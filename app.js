@@ -17,6 +17,7 @@ let refreshListing=()=>{},agendaLoading=false;
 let data,selected='',currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
+const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 const preparedPlayback=createPreparedPlayback((id,{excluded,refresh,signal})=>api('play?source='+encodeURIComponent(id)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal}));
 function link(event){return matchPath(event);}
@@ -72,6 +73,11 @@ async function play(signal,signals,{refresh=false}={}){
 
 function chooser(event,signals){
   main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  if(telegramBrowser&&signals.length){
+    const advice=document.createElement('p');advice.className='player-note';
+    advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
+    main.querySelector('#videoSection').prepend(advice);
+  }
   if(event){
     main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
     const badges=teamBadges(event);
@@ -84,6 +90,13 @@ function chooser(event,signals){
     const destination=document.createElement('p');destination.className='share-destination';sharing.append(destination);
     updateMatchShare=signal=>{
       channel=signals.find(s=>s.id===signal?.id);input.value=getShareData().url;
+      if(telegramBrowser&&channel){
+        const url=new URL(location.href);
+        if(url.searchParams.get('canal')!==channel.id){
+          url.searchParams.set('canal',channel.id);
+          history.replaceState(history.state,'',url);
+        }
+      }
       destination.textContent=channel?'El enlace abrirá directamente '+channel.name+'.':'Comparte el enlace de este partido.';
       feedback.textContent='';manual.hidden=true;
     };
