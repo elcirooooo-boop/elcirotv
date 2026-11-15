@@ -1,6 +1,6 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261114c';
 import {createExternalPlayer} from './external-player.js?v=20261115a';
-import {createLivePlayer} from './live-player.js?v=20261115d';
+import {createLivePlayer} from './live-player.js?v=20261115e';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -85,7 +85,7 @@ async function play(signal,signals,{refresh=false}={}){
       video.setAttribute('aria-label','Reproductor · '+signal.name);
       section.querySelector('.video-frame').replaceChildren(video);
       let initial=source;
-      player=createLivePlayer({video,Hls:window.Hls,
+      player=createLivePlayer({video,Hls:window.Hls,startupTimeout:8000,stallTimeout:12000,
         resolveSource:async(excluded,abortSignal,{refresh:renew})=>{
           const resolved=initial||(await preparedPlayback.read(identity,{refresh:renew,excluded,signal:abortSignal}));initial=null;
           if(resolved.transport!=='relay')throw Object.assign(Error('Señal no disponible.'),{code:'CHANNEL_UNAVAILABLE'});

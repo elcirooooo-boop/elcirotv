@@ -1,6 +1,6 @@
 // Keep transient HLS errors inside the existing playback session. Re-resolving
 // the provider creates a new live timeline and is reserved for sustained loss.
-export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},onUnavailable=()=>{},now=Date.now,timers=globalThis}){
+export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProgress=()=>{},onState=()=>{},onUnavailable=()=>{},now=Date.now,timers=globalThis,startupTimeout=10000,stallTimeout=22000}){
   let engine,disposed=false,connecting=false,replacing=true,starting=true,wanted=true,pending,request,startupTimer,playAttempt=0;
   let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
@@ -130,7 +130,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   listen('ended',()=>{if(!disposed){if(sourceKey&&!persistent)excluded.add(sourceKey);reconnect();}});
   const watchdog=timers.setInterval(()=>{
     if(disposed||!wanted||connecting||pending)return;
-    if(!hasVideo()&&waitingSince&&now()-waitingSince>=10000){reconnect();return;}
+    if(!hasVideo()&&waitingSince&&now()-waitingSince>=startupTimeout){reconnect();return;}
     const stalled=now()-lastProgress;
     // A missing sliver between already downloaded fragments needs a small
     // forward seek, not a new session or another download of the same media.
@@ -145,8 +145,8 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
     }
     // Let HLS.js handle normal buffering and small gaps. A stopped download
     // gets a retry without destroying buffered media or seeking backwards.
-    if(stalled>12000&&engine&&networkRetries<1)resumeDownload();
-    else if(stalled>22000)reconnect();
+    if(stalled>Math.min(12000,stallTimeout-2000)&&engine&&networkRetries<1)resumeDownload();
+    else if(stalled>stallTimeout)reconnect();
   },1000);
   return {
     start:connect,
