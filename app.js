@@ -40,8 +40,9 @@ async function play(signal,signals,{refresh=false}={}){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus'),next=document.querySelector('#providerNext');
   const fullscreen=section.querySelector('#fullscreen'),retry=section.querySelector('#providerRetry');
+  const retryHint=section.querySelector('#providerRetryHint');
   section.hidden=false;
-  fullscreen.hidden=true;retry.hidden=true;next.hidden=true;
+  fullscreen.hidden=true;retry.hidden=true;next.hidden=true;retryHint.hidden=true;
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
@@ -62,7 +63,7 @@ async function play(signal,signals,{refresh=false}={}){
         if(active())status.textContent=signalLabel(info)+' · Está tardando en abrir. '+(info.total>1?'Puedes cambiar de servidor.':'Puedes recargar la señal.');
       },
     });
-    fullscreen.hidden=false;retry.hidden=false;
+    fullscreen.hidden=false;retry.hidden=false;retryHint.hidden=false;
     retry.onclick=()=>player?.reload();
     next.onclick=()=>player?.next();
     playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
@@ -72,7 +73,7 @@ async function play(signal,signals,{refresh=false}={}){
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div><button id="fullscreen" class="player-fullscreen" type="button" aria-label="Pantalla completa" title="Pantalla completa" hidden>Pantalla completa</button></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si la pantalla se queda en negro o aparece publicidad, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button><button id="providerNext" type="button" hidden>Cambiar servidor</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
