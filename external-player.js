@@ -29,8 +29,9 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     clearLoadTimer();
     frame?.remove();
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
-    frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
+    // Keep playback scripts and provider-origin access; all other sandbox capabilities stay blocked.
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin');
+    frame.setAttribute('allow',"autoplay; encrypted-media; fullscreen; picture-in-picture; camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; payment 'none'; usb 'none'");
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;
     let loaded=false,lastReload;
