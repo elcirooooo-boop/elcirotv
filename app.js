@@ -1,5 +1,6 @@
 import {createPlayerFullscreen} from './fullscreen.js?v=20261114c';
 import {createExternalPlayer} from './external-player.js?v=20261115a';
+import {createLivePlayer} from './live-player.js?v=20261115d';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -29,7 +30,7 @@ function heartbeat(){
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Personas con la transmisión abierta, aproximadamente">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){externalActive=false;playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;selected='';}
+function stop(){externalActive=false;playerFullscreen?.destroy();playerFullscreen=null;playerGeneration++;player?.destroy();player=null;const video=document.querySelector('#videoSection video');if(video){video.pause();video.removeAttribute('src');video.load();}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
@@ -46,28 +47,61 @@ async function play(signal,signals,{refresh=false}={}){
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
-  status.textContent='Cargando reproductor externo del proveedor…';
-  try{
-    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
-    if(source.transport!=='embed')throw Error('Esta señal no tiene un reproductor externo disponible.');
+  status.textContent='Preparando la señal…';
+  let openingFallback=false;
+  const enableControls=()=>{
+    fullscreen.hidden=false;retry.hidden=false;retryHint.hidden=false;
+    playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
+  };
+  const openExternal=source=>{
+    playerFullscreen?.destroy();playerFullscreen=null;
+    player?.destroy();player=null;
+    const video=section.querySelector('video');if(video){video.pause();video.removeAttribute('src');video.load();}
     const signalLabel=({index,total})=>signal.name+(total>1?' · Servidor '+(index+1)+' de '+total:'');
     player=createExternalPlayer({
       container:section.querySelector('.video-frame'),sources:source.sources||[{url:source.url}],name:signal.name,
       onOffline:()=>{if(active())status.textContent='Se perdió la conexión. Reintentaremos al volver internet.';},
-      onChange:info=>{
-        next.hidden=info.total<2;
-        status.textContent=signalLabel(info)+(info.reason==='recovery'?' · Recuperando la señal…':' · Cargando…');
-      },
+      onChange:info=>{next.hidden=info.total<2;status.textContent=signalLabel(info)+(info.reason==='recovery'?' · Recuperando la señal…':' · Cargando…');},
       onLoad:info=>{if(active())status.textContent=signalLabel(info)+' · Toca reproducir dentro del vídeo.';},
-      onSlow:info=>{
-        if(active())status.textContent=signalLabel(info)+' · Está tardando en abrir. '+(info.total>1?'Puedes cambiar de servidor.':'Puedes recargar la señal.');
-      },
+      onSlow:info=>{if(active())status.textContent=signalLabel(info)+' · Está tardando en abrir. Puedes recargar la señal o cambiar de servidor.';},
     });
-    fullscreen.hidden=false;retry.hidden=false;retryHint.hidden=false;
-    retry.onclick=()=>player?.reload();
-    next.onclick=()=>player?.next();
-    playerFullscreen=createPlayerFullscreen({section,button:fullscreen});
-    externalActive=true;void heartbeat().then(refreshViewers);
+    retry.onclick=()=>player?.reload();next.onclick=()=>player?.next();
+    enableControls();externalActive=true;
+  };
+  const externalFallback=async()=>{
+    if(!active()||openingFallback)return;
+    openingFallback=true;
+    externalActive=false;status.textContent='Abriendo otra opción de la señal…';
+    try{
+      const source=await api('play?source='+encodeURIComponent(identity)+'&embed=1');
+      if(active())openExternal(source);
+    }catch{if(active())status.textContent='No se pudo recuperar la señal. Pulsa Recargar señal.';}
+    finally{openingFallback=false;}
+  };
+  try{
+    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
+    if(source.transport==='relay'){
+      const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';
+      video.setAttribute('aria-label','Reproductor · '+signal.name);
+      section.querySelector('.video-frame').replaceChildren(video);
+      let initial=source;
+      player=createLivePlayer({video,Hls:window.Hls,
+        resolveSource:async(excluded,abortSignal,{refresh:renew})=>{
+          const resolved=initial||(await preparedPlayback.read(identity,{refresh:renew,excluded,signal:abortSignal}));initial=null;
+          if(resolved.transport!=='relay')throw Object.assign(Error('Señal no disponible.'),{code:'CHANNEL_UNAVAILABLE'});
+          return resolved;
+        },
+        onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
+        onProgress:()=>{if(active())externalActive=true;},
+        onState:()=>{if(active()){externalActive=!video.paused&&!video.ended;void heartbeat();}},
+        onUnavailable:()=>{if(active())void externalFallback();},
+      });
+      retry.onclick=()=>void play(signal,signals,{refresh:true});next.onclick=()=>void externalFallback();next.hidden=false;
+      enableControls();
+      await player.start();
+    }else if(source.transport==='embed')openExternal(source);
+    else throw Error('Esta señal no tiene un reproductor disponible.');
+    if(active())void heartbeat().then(refreshViewers);
   }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }

@@ -6,8 +6,9 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         if(fulbito_player_url($source['url'])){$page=fulbito_canonical($source['url']);break;}
     }
     if($page===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
-    $key='streamxhd-relay-v1-'.fingerprint($page);
+    $key='streamxhd-relay-v2-'.fingerprint($page);
     $cached=cached_read($key);
+    if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
     $usable=static fn($entry)=>isset($entry['resolved'])&&($entry['until']??0)>time()&&(!$refresh||time()-($entry['loaded']??0)<10);
     if(!$usable($cached)){
         $lock=fopen(storage().'/'.$key.'.lock','c');
@@ -15,9 +16,10 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);throw new RuntimeException('MEDIA_BUSY');}
         try{
             $cached=cached_read($key);
+            if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
             if(!$usable($cached)){
-                $resolved=resolve_player($page);
-                probe_playlist($resolved,false);
+                try{$resolved=resolve_player($page);probe_playlist($resolved,true);}
+                catch(Throwable $error){cached_write($key,['until'=>time()+20,'error'=>'CHANNEL_UNAVAILABLE']);throw $error;}
                 $cached=['loaded'=>time(),'until'=>time()+120,'resolved'=>$resolved];
                 cached_write($key,$cached);
             }
