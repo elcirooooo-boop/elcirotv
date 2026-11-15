@@ -22,6 +22,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame,timeout;
+  let triedRecovery=false;
   const clearLoadTimer=()=>timers.clearTimeout(timeout);
   const open=(reason='open')=>{
     if(disposed)return;
@@ -32,10 +33,29 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;
+    let loaded=false,lastReload;
     current.onload=()=>{
       if(disposed||current!==frame)return;
       clearLoadTimer();
-      if(window?.navigator?.onLine!==false)onLoad({index,total:urls.length});
+      if(window?.navigator?.onLine===false)return;
+      // StreamXHD reloads its own page on playback errors. Let one reload finish before switching.
+      if(document.hidden)lastReload=undefined;
+      else if(loaded&&!triedRecovery){
+        const now=Date.now();
+        if(lastReload!==undefined&&now-lastReload<=30000){
+          const alternateURL=urls[index].replace(/\/live([12])\.php\?/,(_,mode)=>mode==='1'?'/live2.php?':'/live1.php?');
+          const alternative=urls.indexOf(alternateURL);
+          if(alternative!==-1){
+            triedRecovery=true;
+            index=alternative;
+            open('recovery');
+            return;
+          }
+        }
+        lastReload=now;
+      }
+      loaded=true;
+      onLoad({index,total:urls.length});
     };
     current.src=urls[index];
     timeout=timers.setTimeout(()=>{
@@ -46,5 +66,5 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   };
   open();
   const connection=watchPlayerConnection({window,document,onOffline:()=>{clearLoadTimer();onOffline();},onReconnect:()=>open('reconnect')});
-  return {reload(){if(disposed)return;connection.reset();open('retry');},next(){if(disposed)return;connection.reset();index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();clearLoadTimer();frame.onload=null;frame.src='about:blank';frame.remove();}};
+  return {reload(){if(disposed)return;connection.reset();triedRecovery=false;open('retry');},next(){if(disposed)return;connection.reset();triedRecovery=false;index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();clearLoadTimer();frame.onload=null;frame.src='about:blank';frame.remove();}};
 }
