@@ -20,7 +20,12 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
-        respond(external_playback($signal));
+        $embed=external_playback($signal);
+        if(($_GET['mode']??'')==='direct-preview'){
+            require __DIR__.'/server/streamxhd-playback.php';
+            respond(streamxhd_direct_playback($embed,($_GET['refresh']??'')==='1'));
+        }
+        respond($embed);
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';
