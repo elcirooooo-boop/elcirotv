@@ -26,9 +26,26 @@ function media_cache_sweep(string $dir,int $budget=134217728): void {
 }
 function shared_media_response(string $url,string $referer,string $range='',?callable $fetch=null): array {
     $fetch??=fn(...$args)=>net_request(...$args);
-    // A partial response must never be confused with a complete fragment.
-    if($range!=='')return $fetch($url,$referer,$range,19000000,15);
-    try{$dir=media_cache_dir();}catch(Throwable){return $fetch($url,$referer,'',19000000,15);}
+    try{$dir=media_cache_dir();}catch(Throwable){return $fetch($url,$referer,$range,19000000,15);}
+    // Serve an exact byte range from a complete cached fragment when possible.
+    if($range!==''){
+        $key=hash('sha256',$url.'|'.$referer);
+        $cached=media_cache_read(media_cache_slot($key).'.bin',$key);
+        if($cached){
+            $size=fstat($cached['stream'])['size']-ftell($cached['stream']);
+            if(preg_match('/^bytes=(\d+)-(\d*)$/D',$range,$parts)){
+                $start=(int)$parts[1];$end=$parts[2]===''?$size-1:min((int)$parts[2],$size-1);
+                if($start<$size&&$end>=$start&&fseek($cached['stream'],$start,SEEK_CUR)===0){
+                    $cached['status']=206;$cached['length']=$end-$start+1;
+                    $cached['headers']['content-range']='bytes '.$start.'-'.$end.'/'.$size;
+                    $cached['headers']['accept-ranges']='bytes';
+                    return $cached;
+                }
+            }
+            fclose($cached['stream']);
+        }
+        return $fetch($url,$referer,$range,19000000,15);
+    }
     if(!is_file($dir.'/fixed-slots.at')){media_cache_sweep($dir);@touch($dir.'/fixed-slots.at');}
     $key=hash('sha256',$url.'|'.$referer);$slot=media_cache_slot($key);$file=$slot.'.bin';
     if($cached=media_cache_read($file,$key))return $cached;

@@ -36,5 +36,5 @@ function net_request(string $url,string $referer='',string $range='',int $limit=
     }
     rewind($stream);return ['status'=>$status,'headers'=>$headers,'stream'=>$stream,'url'=>$url];
 }
-function read_text(array $response): string {try{return stream_get_contents($response['stream']);}finally{fclose($response['stream']);}}
+function read_text(array $response): string {try{return stream_get_contents($response['stream'],$response['length']??null);}finally{fclose($response['stream']);}}
 function fetch_json(string $url): array {$r=net_request($url,'','',6000000);if($r['status']!==200){fclose($r['stream']);throw new RuntimeException('AGENDA_HTTP');}return json_decode(read_text($r),true,64,JSON_THROW_ON_ERROR);}

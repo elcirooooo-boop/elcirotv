@@ -5,7 +5,7 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   let lastProgress=now(),position=-1,stableSince=0,networkRetries=0,mediaRetries=0,reconnects=0,sourceKey='',persistent=false;
   const excluded=new Set(),listeners=[];
   let delivered=false,unavailable=false,waitingSince=0;
-  let renewalTimer,renewalPending=false,tokenExpiry=0,sourceURL='';
+  let renewalTimer,renewalPending=false,tokenExpiry=0,sourceURL='',downloadsPaused=false;
   function renewAfter(delay){
     timers.clearTimeout(renewalTimer);
     renewalTimer=timers.setTimeout(()=>{
@@ -73,12 +73,12 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
       sourceKey=source.sourceKey||'';persistent=['relay','direct'].includes(source.transport);
       if(renewal&&engine){engine.loadSource(source.url);return;}
       replacing=true;starting=true;
-      engine?.destroy();engine=undefined;
+      engine?.destroy();engine=undefined;downloadsPaused=false;
       video.removeAttribute('src');video.load();
       position=-1;lastProgress=now();networkRetries=0;mediaRetries=0;
       waitingSince=now();
       if(Hls?.isSupported()){
-        const instance=new Hls({progressive:true,lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:30,maxMaxBufferLength:60,backBufferLength:30});
+        const instance=new Hls({progressive:true,lowLatencyMode:false,liveSyncDurationCount:3,startLevel:0,testBandwidth:false,maxBufferLength:20,maxMaxBufferLength:40,backBufferLength:15});
         let sourceLoaded=false,parsed=false;
         const startBuffered=(force=false)=>{
           if(disposed||connecting||engine!==instance||!parsed||!starting||!wanted)return;
@@ -123,8 +123,8 @@ export function createLivePlayer({video,Hls,resolveSource,onStatus=()=>{},onProg
   });
   listen('playing',()=>{if(disposed)return;replacing=false;lastProgress=now();status('Reproduciendo');onProgress();onState();});
   listen('canplay',()=>{if(!disposed&&replacing&&!starting){replacing=false;requestPlay();}});
-  listen('play',()=>{if(disposed)return;wanted=true;starting=false;timers.clearTimeout(startupTimer);lastProgress=now();if(renewalPending){renewalPending=false;renewAfter(0);}});
-  listen('pause',()=>{if(disposed||replacing||video.error||video.ended)return;wanted=false;timers.clearTimeout(pending);pending=undefined;status('En pausa');onState();});
+  listen('play',()=>{if(disposed)return;wanted=true;starting=false;timers.clearTimeout(startupTimer);lastProgress=now();if(downloadsPaused){downloadsPaused=false;engine?.startLoad(-1);}if(renewalPending){renewalPending=false;renewAfter(0);}});
+  listen('pause',()=>{if(disposed||replacing||video.error||video.ended)return;wanted=false;timers.clearTimeout(pending);pending=undefined;if(engine){engine.stopLoad();downloadsPaused=true;}status('En pausa');onState();});
   listen('waiting',()=>{if(!disposed&&wanted){stableSince=0;status('Cargando video…');}});
   listen('error',()=>{if(!disposed&&!replacing&&!engine)reconnect();});
   listen('ended',()=>{if(!disposed){if(sourceKey&&!persistent)excluded.add(sourceKey);reconnect();}});

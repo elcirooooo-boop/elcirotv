@@ -46,8 +46,11 @@ try {
         }
         http_response_code($r['status']);header('Content-Type: '.$type);header('Cache-Control: private, max-age=30');
         foreach(['content-range','accept-ranges'] as $name)if(isset($r['headers'][$name]))header($name.': '.$r['headers'][$name]);
-        header('Content-Length: '.(fstat($r['stream'])['size']-ftell($r['stream'])));
-        fpassthru($r['stream']);fclose($r['stream']);exit;
+        header('Content-Length: '.($r['length']??(fstat($r['stream'])['size']-ftell($r['stream']))));
+        if(isset($r['length'])){
+            $output=fopen('php://output','wb');stream_copy_to_stream($r['stream'],$output,$r['length']);fclose($output);
+        }else fpassthru($r['stream']);
+        fclose($r['stream']);exit;
     }
     if($action==='presence'){
         $origin=parse_url($_SERVER['HTTP_ORIGIN']??'');$host=$_SERVER['HTTP_HOST']??'';$expectedScheme=!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off'?'https':'http';
