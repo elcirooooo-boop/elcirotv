@@ -8,8 +8,8 @@ function external_playback(array $signal): array {
             $url=fulbito_canonical($source['url']);
             $path=substr($url,strlen('https://streamxhd.sbs'));
             $automatic=str_replace('/live1.php?', '/live2.php?', $path);
-            foreach([$path,$automatic] as $route){
-                foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
+            foreach(['streamxhd.sbs','streamxhd.st','streamxhd.click'] as $host){
+                foreach([$path,$automatic] as $route){
                     $option='https://'.$host.$route;
                     $sources[$option]=['url'=>$option,'sourceKey'=>fingerprint($option)];
                 }

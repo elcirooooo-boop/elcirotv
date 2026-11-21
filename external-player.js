@@ -25,19 +25,49 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
   if(lost)onOffline();
   return {reset(){cancel();lost=window.navigator?.onLine===false;},destroy(){disposed=true;cancel();window.removeEventListener('offline',offline);window.removeEventListener('online',recover);document.removeEventListener('visibilitychange',recover);}};
 }
-export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},document=globalThis.document,window=globalThis.window}){
+export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame;
-  const mount=()=>{
-    if(frame){frame.src='about:blank';frame.remove();}
+  let triedRecovery=false;
+  const open=(reason='open')=>{
+    if(disposed)return;
+    if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
     frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
+    const current=frame;
+    let loaded=false,loadTime=0;
+    const handleLoad=()=>{
+      if(disposed||current!==frame)return;
+      const now=Date.now();
+      if(loaded&&!triedRecovery&&now-loadTime<=35000){
+        const currentUrl=urls[index];
+        const altUrl=currentUrl.replace(/\/live([12])\.php\?/,(_,m)=>m==='1'?'/live2.php?':'/live1.php?');
+        const altIndex=urls.indexOf(altUrl);
+        if(altIndex!==-1){
+          triedRecovery=true;
+          index=altIndex;
+          open('recovery');
+          return;
+        }
+      }
+      loaded=true;
+      loadTime=now;
+      onLoad({index,total:urls.length});
+    };
+    if(typeof current.addEventListener==='function')current.addEventListener('load',handleLoad);
+    else current.onload=handleLoad;
+    current.src=urls[index];
     container.replaceChildren(frame);
+    onChange({url:urls[index],index,total:urls.length,reason});
   };
-  const open=(reason='open')=>{if(disposed)return;frame.src=urls[index];onChange({url:urls[index],index,total:urls.length,reason});};mount();open();
+  open();
   const connection=watchPlayerConnection({window,document,onOffline,onReconnect:()=>open('reconnect')});
-  return {reload(){if(disposed)return;connection.reset();open('retry');},next(){if(disposed)return;connection.reset();index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();frame.src='about:blank';frame.remove();}};
+  return {
+    reload(){if(disposed)return;triedRecovery=false;connection.reset();open('retry');},
+    next(){if(disposed)return;triedRecovery=false;connection.reset();index=(index+1)%urls.length;open();},
+    destroy(){disposed=true;connection.destroy();if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}}
+  };
 }
