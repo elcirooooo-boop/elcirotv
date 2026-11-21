@@ -1,8 +1,15 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
-  if(url.protocol!=='https:'||url.username||url.password||url.port||!['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)||!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
-  const host=url.hostname==='stream-xhd.com'?'streamxhd.sbs':url.hostname;
-  return 'https://'+host+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
+  if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
+  if(['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)){
+    if(!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
+    const host=url.hostname==='stream-xhd.com'?'streamxhd.sbs':url.hostname;
+    return 'https://'+host+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
+  }
+  if(url.hostname==='embed.ksdjugfssddeports.com'&&/^\/embed2?\/[a-z0-9]{1,80}\.php$/i.test(url.pathname)){
+    return 'https://embed.ksdjugfssddeports.com'+url.pathname;
+  }
+  throw Error('El reproductor no es válido.');
 }
 // Recover only after an observed connection loss; never restart a healthy stream on a timer.
 export function watchPlayerConnection({window=globalThis.window,document=globalThis.document,onOffline=()=>{},onReconnect=()=>{},setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout}){
@@ -18,54 +25,19 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
   if(lost)onOffline();
   return {reset(){cancel();lost=window.navigator?.onLine===false;},destroy(){disposed=true;cancel();window.removeEventListener('offline',offline);window.removeEventListener('online',recover);document.removeEventListener('visibilitychange',recover);}};
 }
-export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},onSlow=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window,timers=globalThis}){
+export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},document=globalThis.document,window=globalThis.window}){
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
-  let index=0,disposed=false,frame,timeout;
-  let triedRecovery=false;
-  const clearLoadTimer=()=>timers.clearTimeout(timeout);
-  const open=(reason='open')=>{
-    if(disposed)return;
-    clearLoadTimer();
-    frame?.remove();
+  let index=0,disposed=false,frame;
+  const mount=()=>{
+    if(frame){frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    // Keep playback scripts and provider-origin access; all other sandbox capabilities stay blocked.
-    frame.setAttribute('sandbox','allow-scripts allow-same-origin');
-    frame.setAttribute('allow',"autoplay; encrypted-media; fullscreen; picture-in-picture; camera 'none'; microphone 'none'; geolocation 'none'; display-capture 'none'; payment 'none'; usb 'none'");
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
-    const current=frame;
-    let loaded=false,lastReload;
-    current.onload=()=>{
-      if(disposed||current!==frame)return;
-      clearLoadTimer();
-      if(window?.navigator?.onLine===false)return;
-      // StreamXHD reloads its own page on playback errors. Let one reload finish before switching.
-      if(document.hidden)lastReload=undefined;
-      else if(loaded&&!triedRecovery){
-        const now=Date.now();
-        if(lastReload!==undefined&&now-lastReload<=30000){
-          const alternateURL=urls[index].replace(/\/live([12])\.php\?/,(_,mode)=>mode==='1'?'/live2.php?':'/live1.php?');
-          const alternative=urls.indexOf(alternateURL);
-          if(alternative!==-1){
-            triedRecovery=true;
-            index=alternative;
-            open('recovery');
-            return;
-          }
-        }
-        lastReload=now;
-      }
-      loaded=true;
-      onLoad({index,total:urls.length});
-    };
-    current.src=urls[index];
-    timeout=timers.setTimeout(()=>{
-      if(window?.navigator?.onLine!==false)onSlow({index,total:urls.length});
-    },8000);
     container.replaceChildren(frame);
-    onChange({url:urls[index],index,total:urls.length,reason});
   };
-  open();
-  const connection=watchPlayerConnection({window,document,onOffline:()=>{clearLoadTimer();onOffline();},onReconnect:()=>open('reconnect')});
-  return {reload(){if(disposed)return;connection.reset();triedRecovery=false;open('retry');},next(){if(disposed)return;connection.reset();triedRecovery=false;index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();clearLoadTimer();frame.onload=null;frame.src='about:blank';frame.remove();}};
+  const open=(reason='open')=>{if(disposed)return;frame.src=urls[index];onChange({url:urls[index],index,total:urls.length,reason});};mount();open();
+  const connection=watchPlayerConnection({window,document,onOffline,onReconnect:()=>open('reconnect')});
+  return {reload(){if(disposed)return;connection.reset();open('retry');},next(){if(disposed)return;connection.reset();index=(index+1)%urls.length;open();},destroy(){disposed=true;connection.destroy();frame.src='about:blank';frame.remove();}};
 }
