@@ -34,3 +34,5 @@
 
 .brand-logo{display:block;width:150px;height:auto}
 @media(max-width:700px){.brand-logo{width:114px}}
+
+.telegram-banner{background:linear-gradient(115deg,#083761,#006699);color:white}.telegram-banner strong,.telegram-banner p span{color:white}.telegram-banner strong{font-size:17px}.telegram-join,.telegram-join:hover{background:white;color:#064978}.match-telegram{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;margin-bottom:16px;border-radius:12px;background:#075583;color:white;font-weight:600}

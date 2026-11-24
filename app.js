@@ -34,7 +34,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí ↗</span></button>`).join('');}
-async function play(signal,signals,{refresh=false}={}){
+async function play(signal,signals,{refresh=false,tried=new Set()}={}){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus');
@@ -45,7 +45,14 @@ async function play(signal,signals,{refresh=false}={}){
 
   document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
   const active=()=>playerGeneration===generation&&selected===identity;
-  status.textContent='Preparando la señal…';
+  tried.add(identity);
+  status.textContent=(tried.size>1?'Probando otra transmisión: ':'Preparando la señal: ')+signal.name;
+  const unavailable=()=>{
+    if(!active())return;
+    const next=currentMatch&&navigator.onLine&&signals.find(option=>!tried.has(option.id));
+    if(next)void play(next,signals,{tried});
+    else status.textContent='Señal no disponible. Pulsa Recargar señal para volver a intentarlo.';
+  };
   const enableControls=()=>{
     retry.hidden=false;retryHint.hidden=false;
   };
@@ -65,7 +72,7 @@ async function play(signal,signals,{refresh=false}={}){
         onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
         onProgress:()=>{if(active())externalActive=true;},
         onState:()=>{if(active()){externalActive=!video.paused&&!video.ended;void heartbeat();}},
-        onUnavailable:()=>{if(active())status.textContent='Señal no disponible. Pulsa Recargar señal.';},
+        onUnavailable:unavailable,
       });
       retry.onclick=()=>void play(signal,signals,{refresh:true});
       enableControls();
@@ -73,12 +80,12 @@ async function play(signal,signals,{refresh=false}={}){
     }
     else throw Error('Esta señal no tiene un reproductor disponible.');
     if(active())void heartbeat().then(refreshViewers);
-  }catch(error){if(active())status.textContent=error.message||'No se pudo abrir el reproductor. Selecciona otro canal.';}
+  }catch(error){if(error.code==='CHANNEL_UNAVAILABLE')unavailable();else if(active())status.textContent=error.message||'No se pudo abrir la señal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si la pantalla se queda en negro o aparece publicidad, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si la pantalla se queda en negro o aparece publicidad, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
