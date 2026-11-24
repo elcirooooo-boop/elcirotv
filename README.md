@@ -1,6 +1,6 @@
 # El Ciro TV para Hostinger Premium
 
-Esta versión utiliza HTML, JavaScript y PHP. No requiere Node.js, Netlify, créditos ni una base de datos externa en el servidor. Funciona exclusivamente con reproductor externo (embed/iframe), sin relay de vídeo por PHP ni HLS.js, ahorrando ancho de banda y conexiones en el hosting. Conserva agenda, canales, alternativas de servidor, enlaces compartidos, contador de espectadores, escudos, banderas y estado EN VIVO estimado.
+Esta versión utiliza HTML, JavaScript y PHP. No requiere Node.js, Netlify, créditos ni una base de datos externa en el servidor. Los canales y partidos usan el reproductor propio con HLS. PHP sirve los fragmentos de vídeo con caché compartida. Cada espectador consume ancho de banda de Hostinger durante la reproducción.
 
 ## Instalar
 
