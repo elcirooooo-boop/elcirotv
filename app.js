@@ -57,7 +57,21 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
     retry.hidden=false;retryHint.hidden=false;
   };
   try{
-    const source=await preparedPlayback.read(identity,{refresh});if(!active())return;
+    let source;
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        source=await preparedPlayback.read(identity,{refresh:refresh||attempt>0});
+        break;
+      }catch(error){
+        if(!active())return;
+        if(error.status!==503)throw error;
+        if(attempt===2){unavailable();return;}
+        status.textContent='Comprobando la señal de '+signal.name+'…';
+        await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)));
+        if(!active())return;
+      }
+    }
+    if(!active())return;
     if(source.transport==='relay'){
       const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';
       video.setAttribute('aria-label','Reproductor · '+signal.name);

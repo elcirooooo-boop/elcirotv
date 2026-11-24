@@ -8,7 +8,7 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
     if($page===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
     $key='streamxhd-relay-v2-'.fingerprint($page);
     $cached=cached_read($key);
-    if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    if(!$refresh&&($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
     $usable=static fn($entry)=>isset($entry['resolved'])&&($entry['until']??0)>time()&&(!$refresh||time()-($entry['loaded']??0)<10);
     if(!$usable($cached)){
         $lock=fopen(storage().'/'.$key.'.lock','c');
@@ -16,10 +16,10 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);throw new RuntimeException('MEDIA_BUSY');}
         try{
             $cached=cached_read($key);
-            if(($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
+            if(!$refresh&&($cached['until']??0)>time()&&isset($cached['error']))throw new RuntimeException('CHANNEL_UNAVAILABLE');
             if(!$usable($cached)){
-                try{$resolved=resolve_player($page);probe_playlist($resolved,$refresh,fn($url,$referer,$range)=>shared_media_response($url,$referer,$range));}
-                catch(Throwable $error){cached_write($key,['until'=>time()+20,'error'=>'CHANNEL_UNAVAILABLE']);throw $error;}
+                try{$resolved=resolve_player($page);probe_playlist($resolved,false,fn($url,$referer,$range)=>shared_media_response($url,$referer,$range));}
+                catch(Throwable $error){cached_write($key,['until'=>time()+4,'error'=>'CHANNEL_UNAVAILABLE']);throw $error;}
                 $cached=['loaded'=>time(),'until'=>time()+120,'resolved'=>$resolved];
                 cached_write($key,$cached);
             }
