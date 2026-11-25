@@ -17,7 +17,7 @@ const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
 const appleMobile=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-const tapToLoad=telegramBrowser&&appleMobile;
+const showQuickAlternate=telegramBrowser&&appleMobile;
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
@@ -33,7 +33,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
-function play(signal,{activate=false,standardPlayer=false}={}){
+function play(signal,{reveal=false,standardPlayer=false}={}){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection');
   const status=section.querySelector('#signalStatus');
@@ -41,8 +41,6 @@ function play(signal,{activate=false,standardPlayer=false}={}){
   const recovery=section.querySelector('[data-signal-recovery]');
   const reload=recovery.querySelector('button');
   const fullscreen=section.querySelector('[data-fullscreen]');
-  const start=section.querySelector('[data-signal-start]');
-  start.hidden=true;
   fullscreen.hidden=true;
   recovery.hidden=true;
   player.replaceChildren();
@@ -53,12 +51,6 @@ function play(signal,{activate=false,standardPlayer=false}={}){
   });
   if(!/^https:\/\/tvf90\.com\/online\.php\?stream=[a-z0-9_-]{1,80}$/i.test(signal.playerUrl||'')){
     status.textContent='TVF90 aún no publicó un enlace para esta señal.';
-    return;
-  }
-  if(tapToLoad&&!activate){
-    status.textContent=signal.name+' · Toca para cargar el reproductor.';
-    start.onclick=()=>play(signal,{activate:true});
-    start.hidden=false;
     return;
   }
   const frame=document.createElement('iframe');
@@ -77,18 +69,19 @@ function play(signal,{activate=false,standardPlayer=false}={}){
   player.append(frame);
 
   status.textContent=signal.name+' · Reproductor de TVF90';
-  reload.onclick=()=>play(signal,{activate:true,standardPlayer:useSingleFrame});
+  reload.onclick=()=>play(signal,{standardPlayer:useSingleFrame});
   const alternate=recovery.querySelector('[data-signal-alternate]');
-  const next=tapToLoad&&[...main.querySelectorAll('[data-signal]')].find(button=>button.dataset.signal!==signal.id);
+  const next=showQuickAlternate&&[...main.querySelectorAll('[data-signal]')].find(button=>button.dataset.signal!==signal.id);
   alternate.hidden=!next;
   alternate.onclick=next?()=>next.click():null;
   if(next)alternate.textContent='Probar '+next.querySelector('h2').textContent;
   recovery.hidden=false;
   fullscreen.hidden=false;
+  if(reveal)requestAnimationFrame(()=>{if(frame.isConnected)player.parentElement.scrollIntoView({block:'start'});});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><button type="button" class="primary-button" data-signal-start hidden>Cargar reproductor</button><div data-signal-recovery hidden><p class="signal-status">Si aparece un error de vídeo, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button><button type="button" data-signal-alternate hidden></button></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si aparece un error de vídeo, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button><button type="button" data-signal-alternate hidden></button></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   const section=main.querySelector('#videoSection');
   playerFullscreen=createPlayerFullscreen({section,button:section.querySelector('[data-fullscreen]')});
   if(telegramBrowser&&signals.length){
@@ -130,7 +123,7 @@ function chooser(event,signals){
     document.title=getShareData().title;
   }
   main.querySelectorAll('[data-signal]').forEach(button=>{
-    button.onclick=()=>play(signals.find(signal=>signal.id===button.dataset.signal),{activate:true});
+    button.onclick=()=>play(signals.find(signal=>signal.id===button.dataset.signal),{reveal:true});
   });
 }
 function listing(channels=false){
@@ -166,11 +159,11 @@ async function render(){
       const requested=new URLSearchParams(location.search).get('canal');
       if(requested){
         const signal=sharedSignal(event,location.search);
-        if(signal)play(signal);
+        if(signal)play(signal,{reveal:true});
         else{
           const notice=document.createElement('p');notice.className='player-note';notice.setAttribute('role','status');notice.textContent='El canal compartido ya no está disponible para este partido. Selecciona otro canal de la lista.';main.querySelector('.match-channels').before(notice);
         }
-      }else if(event.signals[0])play(event.signals[0]);
+      }else if(event.signals[0])play(event.signals[0],{reveal:true});
     }else if(location.pathname.startsWith('/canal/')){
       const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);play(channel);
     }else throw Error('No encontramos esta página.');
