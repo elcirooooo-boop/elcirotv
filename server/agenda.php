@@ -185,7 +185,7 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-ondemand-v2';$old=cached_read($key);
+    $key='agenda-ondemand-v3';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}

@@ -42,7 +42,7 @@ function normalize_damitv_agenda(array $payload): array {
             $raw=is_array($row['sources']??null)?$row['sources']:[];
             if(is_string($row['embed']??null))$raw[]=['embed'=>$row['embed'],'name'=>'Principal'];
             foreach($raw as $i=>$source){
-                if(!is_array($source)||!is_string($source['embed']??null)||!damitv_player_url($source['embed'])||(parse_url($source['embed'],PHP_URL_PATH)!=='/embed/'))continue;
+                if(!is_array($source)||!is_string($source['embed']??null)||!damitv_player_url($source['embed']))continue;
                 $url=damitv_canonical($source['embed']);$sid=damitv_signal_id($url);
                 if(isset($signals[$sid]))continue;
                 $name=trim(is_string($source['name']??null)?$source['name']:'')?:'Señal '.($i+1);
