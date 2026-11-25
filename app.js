@@ -87,6 +87,26 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
 
 function chooser(event,signals){
   main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si aparece un aviso del proveedor, prueba otro canal de la lista.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  if(event?.id==='201d6aeccf762aa5424b5f71'){
+    const option=document.createElement('button');
+    option.type='button';
+    option.textContent='Seguir con Barça Live · Cobertura oficial en YouTube';
+    main.querySelector('.status-actions').append(option);
+    option.onclick=()=>{
+      stop();
+      const frame=document.createElement('iframe');
+      frame.title='Barça Live · Sabah vs Barcelona';
+      frame.className='external-player';
+      frame.referrerPolicy='strict-origin-when-cross-origin';
+      frame.allow='encrypted-media; fullscreen; picture-in-picture';
+      frame.allowFullscreen=true;
+      frame.src='https://www.youtube-nocookie.com/embed/yNw3UYyP-Uc';
+      main.querySelector('.video-frame').replaceChildren(frame);
+      main.querySelector('#signalStatus').textContent='Barça Live · Cobertura oficial del club';
+      main.querySelector('#providerRetry').hidden=true;
+      main.querySelector('#providerRetryHint').hidden=true;
+    };
+  }
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
