@@ -123,7 +123,8 @@ function fixture_identity(array $e): ?string {
     $title=preg_replace('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/iu','',$e['title']);$title=preg_replace('/^Mexico City Game\s*[-–—:]\s*/iu','',$title);$names=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$title);
     if(count($names)!==2){$context=folded($e['league'].' '.$title);if(preg_match('/\bgolf\b/',$context))return 'session:golf:'.folded($title);if(preg_match('/\bmoto\s*gp\b/',$context))return 'session:motogp:'.trim(preg_replace('/\b(motogp|moto gp|gp|gran premio|deportes)\b/','',$context));return null;}
     $league=$e['league'];if(preg_match('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/iu',$e['title'],$m))$league=$m[1];$league=folded($league);
-    $league=match($league){'nba usa'=>'nba','liga 1 argentina','liga profesional','liga profesional argentina'=>'liga profesional argentina','liga 1 colombia','primera a','liga betplay','liga betplay dimayor'=>'colombia primera a','laliga ea sports'=>'laliga','laliga smartbank','laliga hypermotion'=>'laliga 2','bundesliga 2'=>'2 bundesliga','liga de ecuador','serie a italia'=>'serie a','ligue 1 francia'=>'ligue 1','mls usa'=>'mls','liga de portugal'=>'primeira liga','liga turquia'=>'super lig','premiership escocia'=>'premiership','liga 1 chile','liga de costa rica'=>'primera division','liga 1 peru'=>'liga 1','copa do brasil'=>'copa de brasil',default=>$league};
+    $league=match($league){'ucl'=>'uefa champions league','nba usa'=>'nba','liga 1 argentina','liga profesional','liga profesional argentina'=>'liga profesional argentina','liga 1 colombia','primera a','liga betplay','liga betplay dimayor'=>'colombia primera a','laliga ea sports'=>'laliga','laliga smartbank','laliga hypermotion'=>'laliga 2','bundesliga 2'=>'2 bundesliga','liga de ecuador','serie a italia'=>'serie a','ligue 1 francia'=>'ligue 1','mls usa'=>'mls','liga de portugal'=>'primeira liga','liga turquia'=>'super lig','premiership escocia'=>'premiership','liga 1 chile','liga de costa rica'=>'primera division','liga 1 peru'=>'liga 1','copa do brasil'=>'copa de brasil',default=>$league};
+    if($league==='uefa champions league')$names=array_map(fn($name)=>folded($name)==='sabah fk'?'Sabah':$name,$names);
     $teams=[team_identity(trim($names[0]),$league),team_identity(trim($names[1]),$league)];if(in_array($league,['nba','wnba','nhl','nfl','mlb'],true))sort($teams);
     return json_encode([$league,...$teams]);
 }
@@ -184,7 +185,7 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-ondemand-v1';$old=cached_read($key);
+    $key='agenda-ondemand-v2';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
