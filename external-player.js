@@ -43,14 +43,8 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
   if(lost)onOffline();
   return {reset(){cancel();lost=window.navigator?.onLine===false;},destroy(){disposed=true;cancel();window.removeEventListener('offline',offline);window.removeEventListener('online',recover);document.removeEventListener('visibilitychange',recover);}};
 }
-export function createExternalPlayer({container,sources,name,rotateOnReload=false,sportsrcOrigin=null,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
-  const urls=[...new Set(sources.map(s=>{
-    if(!sportsrcOrigin)return providerPlayerURL(s.url);
-    const url=new URL(s.url);
-    if(url.protocol!=='https:'||url.origin!==sportsrcOrigin||url.username||url.password)
-      throw Error('El reproductor no es válido.');
-    return url.href;
-  }))];
+export function createExternalPlayer({container,sources,name,rotateOnReload=false,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
+  const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame;
   let triedRecovery=false;
@@ -60,7 +54,7 @@ export function createExternalPlayer({container,sources,name,rotateOnReload=fals
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
     const embedHost=new URL(urls[index]).hostname;
     const isMatchora=['matchora.to','matchora.pro','es.matchora.pro'].includes(embedHost);
-    if(!isMatchora&&!sportsrcOrigin)frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    if(!isMatchora)frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;
