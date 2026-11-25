@@ -1,3 +1,4 @@
+import {createExternalPlayer} from './external-player.js?v=20261125f';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -32,7 +33,7 @@ function navigate(href){history.pushState(null,'',href);render();window.scrollTo
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
-function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver en TVF90 ↗</span></button>`).join('');}
+function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
 async function play(signal,signals,{refresh=false,tried=new Set()}={}){
   stop();selected=signal.id;const generation=playerGeneration,identity=selected;
   updateMatchShare(signal);
@@ -72,15 +73,20 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
     }
     if(!active())return;
     const target=new URL(source.url);
-    if(target.origin!=='https://tvf90.com'||source.transport!=='external')throw Error('Reproductor no disponible.');
-    status.textContent='Abriendo '+signal.name+' en TVF90…';
-    window.location.replace(target.href);
+    if(target.origin!=='https://tvf90.com'||!['external','embed'].includes(source.transport))throw Error('Reproductor no disponible.');
+    status.textContent='Cargando '+signal.name+'…';
+    player=createExternalPlayer({container:section.querySelector('.video-frame'),sources:[{url:target.href}],name:signal.name,
+      onLoad:()=>{if(active())status.textContent=signal.name+' · Toca reproducir dentro del vídeo.';}
+    });
+    externalActive=true;
+    retryHint.hidden=false;
+    retry.onclick=()=>player?.reload();
   }catch(error){if(error.code==='CHANNEL_UNAVAILABLE')unavailable();else if(active())status.textContent=error.message||'No se pudo abrir la señal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si la pantalla se queda en negro o aparece publicidad, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si la pantalla se queda en negro o aparece publicidad, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
