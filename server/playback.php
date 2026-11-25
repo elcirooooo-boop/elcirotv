@@ -37,7 +37,7 @@ function external_playback(array $signal): array {
         }
     }
     if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
-    return ['transport'=>'embed','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
+    return ['transport'=>'external','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
 }
 function published_player_config(string $html): ?array {
     if(!preg_match('~window\._econfig\s*=\s*["\']([A-Za-z0-9+/=]+)["\']~',$html,$m))return null;
