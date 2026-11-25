@@ -43,7 +43,7 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
   if(lost)onOffline();
   return {reset(){cancel();lost=window.navigator?.onLine===false;},destroy(){disposed=true;cancel();window.removeEventListener('offline',offline);window.removeEventListener('online',recover);document.removeEventListener('visibilitychange',recover);}};
 }
-export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
+export function createExternalPlayer({container,sources,name,rotateOnReload=false,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame;
@@ -86,7 +86,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
   open();
   const connection=watchPlayerConnection({window,document,onOffline,onReconnect:()=>open('reconnect')});
   return {
-    reload(){if(disposed)return;triedRecovery=false;connection.reset();open('retry');},
+    reload(){if(disposed)return;triedRecovery=false;connection.reset();if(rotateOnReload)index=(index+1)%urls.length;open('retry');},
     next(){if(disposed)return;triedRecovery=false;connection.reset();index=(index+1)%urls.length;open();},
     destroy(){disposed=true;connection.destroy();if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}}
   };

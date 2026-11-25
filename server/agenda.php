@@ -205,7 +205,7 @@ function agenda(): array {
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
-    $hide=function($signal){if(($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
+    $hide=function($signal){if((($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))||(($signal['provider']??'')==='matchora'&&matchora_embed($signal['url'])))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
     $listed=[];
     $add=function($signal)use(&$channels,&$listed,$hide){
         $key=($signal['provider']??'')==='embedlatam'?'url:'.$signal['url']:'id:'.$signal['id'];

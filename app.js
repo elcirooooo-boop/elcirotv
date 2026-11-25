@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261125p';
+import {createExternalPlayer} from './external-player.js?v=20261125q';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -162,8 +162,8 @@ function chooser(event,signals){
     connection.dataset.playerPreconnect='';
     document.head.append(connection);
   }
-  if(initial&&data.provider!=='futbolvivo')void preparedPlayback.prepare(initial.id);
-  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>void preparedPlayback.prepare(b.dataset.signal);b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
+  if(initial&&!initial.playerUrl&&data.provider!=='futbolvivo')void preparedPlayback.prepare(initial.id);
+  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>{if(!signals.find(s=>s.id===b.dataset.signal)?.playerUrl)void preparedPlayback.prepare(b.dataset.signal);};b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
 }
 function listing(channels=false){
   const leagueOptions=()=>'<option value="">Todas las competiciones</option>'+[...new Set(visibleAgendaEvents(data.events).map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('');
