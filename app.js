@@ -1,3 +1,4 @@
+import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261125y';
@@ -8,6 +9,7 @@ document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
+let playerFullscreen;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
@@ -36,6 +38,8 @@ function play(signal){
   const player=section.querySelector('.video-frame');
   const recovery=section.querySelector('[data-signal-recovery]');
   const reload=recovery.querySelector('button');
+  const fullscreen=section.querySelector('[data-fullscreen]');
+  fullscreen.hidden=true;
   recovery.hidden=true;
   player.replaceChildren();
   player.parentElement.hidden=true;
@@ -60,10 +64,13 @@ function play(signal){
   status.textContent=signal.name+' · Reproductor de TVF90';
   reload.onclick=()=>play(signal);
   recovery.hidden=false;
+  fullscreen.hidden=false;
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si aparece un error de vídeo, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button></div></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si aparece un error de vídeo, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  const section=main.querySelector('#videoSection');
+  playerFullscreen=createPlayerFullscreen({section,button:section.querySelector('[data-fullscreen]')});
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si TVF90 no abre desde Telegram, toca ⋯ y elige «Abrir en el navegador».';
@@ -121,6 +128,8 @@ function listing(channels=false){
   refreshListing=()=>{const select=main.querySelector('#league');if(select){const value=select.value;select.innerHTML=leagueOptions();select.value=[...select.options].some(o=>o.value===value)?value:'';}update();};
 }
 async function render(){
+  playerFullscreen?.destroy();
+  playerFullscreen=null;
   refreshListing=()=>{};
   currentMatch='';
   updateMatchShare=()=>{};
