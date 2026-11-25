@@ -22,7 +22,9 @@ function storage(): string {
 }
 function cached_read(string $name): ?array {
     $path=storage().'/'.$name.'.json';if(!is_file($path))return null;
-    $value=json_decode(file_get_contents($path),true);return is_array($value)?$value:null;
+    $contents=@file_get_contents($path);
+    if($contents===false)return null;
+    $value=json_decode($contents,true);return is_array($value)?$value:null;
 }
 function cached_write(string $name,array $data): void {
     $path=storage().'/'.$name.'.json';$tmp=tempnam(storage(),'write-');
