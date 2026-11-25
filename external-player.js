@@ -5,6 +5,7 @@ export function providerPlayerURL(value){
   }
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/embed/'&&/^[a-z0-9_\/-]{1,180}$/i.test(url.searchParams.get('id')||''))return url.origin+url.pathname+'?id='+encodeURIComponent(url.searchParams.get('id'));
+  if(url.hostname==='streamtp99a.sbs'&&url.pathname==='/global1.php'&&/^[a-z0-9_-]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(url.hostname==='tvf90.com' && /^\/(online|1|2|3|5|hd|canal|plus1)\.php$/.test(url.pathname) && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(url.hostname==='stream04.lat' && url.pathname==='/libre/live1.php' && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)){

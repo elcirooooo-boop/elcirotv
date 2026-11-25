@@ -4,6 +4,7 @@ require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
 require_once __DIR__.'/damitv-agenda.php';
+require_once __DIR__.'/libre-agenda.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -185,6 +186,21 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
+    $key='agenda-futbollibre-v1';
+    $cached=cached_read($key);
+    if(($cached['day']??'')===today()&&time()-($cached['loaded']??0)<60)return $cached;
+    $events=agenda_feed('futbollibre-v1',fn()=>libre_events());
+    if(!$events)return ondemand_agenda();
+    $previous=cached_read('agenda-ondemand-v2');
+    $events=retain_agenda_links($events,$previous['events']??[]);
+    $channels=libre_channels();
+    remember_published_signals(array_merge($events,[['signals'=>$channels]]));
+    $data=['provider'=>'futbollibre','day'=>today(),'events'=>$events,'channels'=>$channels,
+        'loaded'=>time(),'updatedAt'=>iso(time()),'stale'=>false];
+    cached_write($key,$data);
+    return $data;
+}
+function ondemand_agenda(): array {
     $key='agenda-ondemand-v2';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
@@ -210,7 +226,7 @@ function public_agenda(array $data): array {
         $key=($signal['provider']??'')==='embedlatam'?'url:'.$signal['url']:'id:'.$signal['id'];
         if(isset($listed[$key]))return;$listed[$key]=true;$channels[$signal['id']]=$hide($signal);
     };
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
+    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','futbollibre','streamxhd','damitv','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$add($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }
