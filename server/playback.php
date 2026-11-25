@@ -30,20 +30,9 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         'sourceKey'=>fingerprint($page),'expiresAt'=>iso($expiry),'renewInSeconds'=>300];
 }
 function external_playback(array $signal): array {
-    $sources=[];
-    $published=$signal['url']??'';
-    $candidates=array_unique(array_merge([$published],array_column($signal['sources']??[],'url')));
-    foreach($candidates as $candidate){
-        if(parse_url($candidate,PHP_URL_HOST)==='tvf90.com' && classic_player_url($candidate)){
-            parse_str(parse_url($candidate, PHP_URL_QUERY) ?? '', $query);
-            $stream = $query['stream'] ?? '';
-            if (!is_string($stream) || !preg_match('/^[-a-z0-9_]{1,80}$/iD', $stream)) continue;
-            $url = 'https://tvf90.com/online.php?stream=' . rawurlencode($stream);
-            $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
-        }
-    }
-    if(!$sources)throw new RuntimeException('CHANNEL_UNAVAILABLE');$sources=array_values($sources);
-    return ['transport'=>'external','openInNewTab'=>false,'name'=>$signal['name'],'url'=>$sources[0]['url'],'sourceKey'=>$sources[0]['sourceKey'],'sources'=>$sources];
+    $url=$signal['url']??'';
+    if(!damitv_player_url($url)||parse_url($url,PHP_URL_PATH)!=='/embed/')throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    return ['transport'=>'embed','name'=>$signal['name'],'url'=>$url];
 }
 function published_player_config(string $html): ?array {
     if(!preg_match('~window\._econfig\s*=\s*["\']([A-Za-z0-9+/=]+)["\']~',$html,$m))return null;

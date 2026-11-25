@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
+require_once __DIR__.'/damitv-agenda.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -183,17 +184,22 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-tvf90-direct-v1');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
-    $lock=fopen(storage().'/agenda-tvf90-direct-v1.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'classic','day'=>today(),'events'=>[],'channels'=>catalog_signals(),'updatedAt'=>iso(time()),'stale'=>true];}
-    try{$feeds=[];
-        $feeds[]=agenda_feed('tvf90-direct-v1',fn()=>classic_events());
-        $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
-        if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-futbolvivo-external-v2')??cached_read('agenda-classic-external');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=catalog_signals();
-        if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
+    $key='agenda-ondemand-v1';$old=cached_read($key);
+    if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
+    $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    try{
+        try{$feed=normalize_damitv_agenda(fetch_json('https://ondemand.st/papi/api/streams'));}
+        catch(Throwable $error){
+            if($old&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
+            error_log('El Ciro DAMITV: '.$error->getMessage());
+            return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];
+        }
+        $previous=$old??cached_read('agenda-tvf90-direct-v1');
+        $events=retain_agenda_links($feed['events'],$previous['events']??[]);
+        $channels=$feed['channels'];
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>3,'provider'=>'classic','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-direct-v1',$data);return $data;
+        $data=['version'=>1,'provider'=>'damitv','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write($key,$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {

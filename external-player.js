@@ -4,6 +4,7 @@ export function providerPlayerURL(value){
     url=new URL(atob(url.searchParams.get('r')||''));
   }
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
+  if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/embed/'&&/^[a-z0-9_\/-]{1,180}$/i.test(url.searchParams.get('id')||''))return url.origin+url.pathname+'?id='+encodeURIComponent(url.searchParams.get('id'));
   if(url.hostname==='tvf90.com' && /^\/(online|1|2|3|5|hd|canal|plus1)\.php$/.test(url.pathname) && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(url.hostname==='stream04.lat' && url.pathname==='/libre/live1.php' && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)){
@@ -39,11 +40,7 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     if(disposed)return;
     if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    const target=new URL(urls[index]);
-    const tvf90PublicPlayer=target.origin==='https://tvf90.com'&&target.pathname==='/online.php';
-    let sandbox='allow-scripts allow-same-origin allow-presentation';
-    if(tvf90PublicPlayer)sandbox+=' allow-popups';
-    frame.setAttribute('sandbox',sandbox);
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation allow-popups');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;

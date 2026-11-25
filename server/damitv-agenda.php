@@ -5,7 +5,7 @@ declare(strict_types=1);
 function damitv_player_url(string $url): bool {
     if(strlen($url)>8192||preg_match('/[\x00-\x20]/',$url))return false;
     $p=parse_url($url);
-    if(!$p||($p['scheme']??'')!=='https'||($p['host']??'')!=='damitv.st'||isset($p['user'])||isset($p['pass'])||isset($p['port'])||isset($p['fragment']))return false;
+    if(!$p||($p['scheme']??'')!=='https'||!in_array($p['host']??'',['damitv.st','ondemand.st','ondemand.to'],true)||isset($p['user'])||isset($p['pass'])||isset($p['port'])||isset($p['fragment']))return false;
     parse_str($p['query']??'',$q);
     if(($p['path']??'')==='/embed/')return is_string($q['id']??null)&&preg_match('~^[a-zA-Z0-9_/-]{1,180}$~D',$q['id'])===1&&count($q)===1;
     if(($p['path']??'')!=='/player/hls/'||!is_string($q['url']??null)||!preg_match('/^[0-9]{1,8}$/D',(string)($q['v']??''))||array_diff(array_keys($q),['v','url','name']))return false;
@@ -19,7 +19,7 @@ function damitv_canonical(string $url): string {
     if(!damitv_player_url($url))throw new RuntimeException('CHANNEL_UNAVAILABLE');
     $p=parse_url($url);parse_str($p['query']??'',$q);
     $params=$p['path']==='/embed/'?['id'=>$q['id']]:['v'=>$q['v'],'url'=>$q['url'],'name'=>$q['name']??'Live'];
-    return 'https://damitv.st'.$p['path'].'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
+    return 'https://'.$p['host'].$p['path'].'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
 }
 function damitv_signal_id(string $url): string {
     parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);
@@ -42,7 +42,7 @@ function normalize_damitv_agenda(array $payload): array {
             $raw=is_array($row['sources']??null)?$row['sources']:[];
             if(is_string($row['embed']??null))$raw[]=['embed'=>$row['embed'],'name'=>'Principal'];
             foreach($raw as $i=>$source){
-                if(!is_array($source)||!is_string($source['embed']??null)||!damitv_player_url($source['embed']))continue;
+                if(!is_array($source)||!is_string($source['embed']??null)||!damitv_player_url($source['embed'])||(parse_url($source['embed'],PHP_URL_PATH)!=='/embed/'))continue;
                 $url=damitv_canonical($source['embed']);$sid=damitv_signal_id($url);
                 if(isset($signals[$sid]))continue;
                 $name=trim(is_string($source['name']??null)?$source['name']:'')?:'Señal '.($i+1);
