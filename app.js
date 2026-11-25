@@ -1,6 +1,6 @@
 import {watchPlayerConnection} from './external-player.js?v=20261125ae';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
-import {matchPath,matchIdFromPath,channelPath,channelIdFromPath,hasSharedSignal,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js?v=20261125ah';
+import {matchPath,matchFromPath,channelPath,channelFromPath,hasSharedSignal,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js?v=20261125ai';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261125y';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
@@ -19,7 +19,7 @@ const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php'
 const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
 const appleMobile=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
-function link(event){return matchPath(event);}
+function link(event){return matchPath(event,data.events);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
   const match=currentMatch&&!document.hidden&&main.querySelector('#videoSection .video-frame iframe')?currentMatch:'';
@@ -122,7 +122,7 @@ function chooser(event,signals){
     const badges=teamBadges(event);
     if(badges)main.querySelector('.intro h1').insertAdjacentHTML('beforebegin',`<div class="match-team-heading">${badges}</div>`);
     let channel=sharedSignal(event,location.search)||signals[0];
-    const getShareData=()=>matchShareData(event,location.origin,channel);
+    const getShareData=()=>matchShareData(event,location.origin,channel,data.events);
     const sharing=document.createElement('section');sharing.className='match-sharing';sharing.setAttribute('aria-label','Compartir este partido');
     sharing.innerHTML=`<div class="share-actions"><button type="button" data-share>Compartir partido ↗</button><button type="button" data-copy>Copiar enlace</button></div><p class="share-feedback" role="status" aria-live="polite"></p><label class="share-manual" hidden>Enlace directo al partido<input type="url" readonly aria-label="Enlace directo al partido"></label>`;
     const feedback=sharing.querySelector('.share-feedback'),manual=sharing.querySelector('.share-manual'),input=sharing.querySelector('input');input.value=getShareData().url;
@@ -165,7 +165,7 @@ function listing(channels=false){
     const values=channels?data.channels.filter(c=>c.name.toLowerCase().includes(term)):chronologicalEvents(events.filter(e=>(!league||e.league===league)&&`${e.title} ${e.league} ${e.signals.map(s=>s.name).join(' ')}`.toLowerCase().includes(term)));
     main.querySelector('#count').textContent=values.length+(channels?' señales':' partidos');
     let previousDay='';
-    main.querySelector('#results').innerHTML=values.length?(channels?`<div class="channel-grid">${values.map(c=>`<a class="channel-card" href="${channelPath(c)}"><h2>${esc(c.name)}</h2><span class="text-link">Elegir señal ↗</span></a>`).join('')}</div>`:`<div class="event-list">${values.map(e=>{const badges=teamBadges(e),day=scheduleDay(e);const heading=day.key!==previousDay?`<h3 class="event-day">${esc(day.label)}<span>Horario de Venezuela · de menor a mayor hora</span></h3>`:'';previousDay=day.key;return `${heading}<a class="event-row${badges?' has-teams':''}" href="${link(e)}"><span class="event-time">${scheduleMarkup(e)}</span>${badges}<div class="event-description"><h3>${esc(e.title)}</h3><p>${esc(e.league)}</p>${liveIndicator(e)}${viewerLabel(e.id)}</div><span class="event-channel-choice"><span>${e.signals.length} canales</span><span>›</span></span></a>`;}).join('')}</div>`):'<div class="empty"><h2>No hay resultados</h2><p>Prueba otra búsqueda o vuelve a consultar la agenda.</p></div>';
+    main.querySelector('#results').innerHTML=values.length?(channels?`<div class="channel-grid">${values.map(c=>`<a class="channel-card" href="${channelPath(c,data.channels)}"><h2>${esc(c.name)}</h2><span class="text-link">Elegir señal ↗</span></a>`).join('')}</div>`:`<div class="event-list">${values.map(e=>{const badges=teamBadges(e),day=scheduleDay(e);const heading=day.key!==previousDay?`<h3 class="event-day">${esc(day.label)}<span>Horario de Venezuela · de menor a mayor hora</span></h3>`:'';previousDay=day.key;return `${heading}<a class="event-row${badges?' has-teams':''}" href="${link(e)}"><span class="event-time">${scheduleMarkup(e)}</span>${badges}<div class="event-description"><h3>${esc(e.title)}</h3><p>${esc(e.league)}</p>${liveIndicator(e)}${viewerLabel(e.id)}</div><span class="event-channel-choice"><span>${e.signals.length} canales</span><span>›</span></span></a>`;}).join('')}</div>`):'<div class="empty"><h2>No hay resultados</h2><p>Prueba otra búsqueda o vuelve a consultar la agenda.</p></div>';
     if(!channels&&!events.length)main.querySelector('#results').innerHTML=`<div class="empty"><h2>Agenda pendiente de actualizar</h2><p>${data.stale?'La fuente no está disponible ahora.':'La fuente todavía no ha publicado los partidos de hoy.'} Puedes seguir viendo los canales disponibles.</p><a class="text-link" href="/canales">Ver canales ↗</a></div>`;
   };main.querySelector('#search').oninput=update;if(main.querySelector('#league'))main.querySelector('#league').onchange=update;update();
   refreshListing=()=>{const select=main.querySelector('#league');if(select){const value=select.value;select.innerHTML=leagueOptions();select.value=[...select.options].some(o=>o.value===value)?value:'';}update();};
@@ -185,8 +185,7 @@ async function render(){
     if(location.pathname==='/')listing();
     else if(location.pathname==='/canales')listing(true);
     else if(/^\/(p|partido)\//.test(location.pathname)){
-      const requestedId=matchIdFromPath(location.pathname);
-      const event=data.events.find(e=>e.id===requestedId)||data.events.find(e=>e.legacyIds?.includes(requestedId));
+      const event=matchFromPath(data.events,location.pathname);
       if(!event)throw Error('Este partido ya no está publicado en la agenda de hoy.');currentMatch=event.id;chooser(event,event.signals);
       const requested=hasSharedSignal(location.search);
       if(requested){
@@ -197,8 +196,7 @@ async function render(){
         }
       }else if(event.signals[0])play(event.signals[0],{reveal:true});
     }else if(/^\/(c|canal)\//.test(location.pathname)){
-      const channelId=channelIdFromPath(location.pathname);
-      const channel=data.channels.find(c=>c.id===channelId);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);play(channel);
+      const channel=channelFromPath(data.channels,location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);play(channel);
     }else throw Error('No encontramos esta página.');
     void heartbeat().then(refreshViewers);
     if(!tracking)tracking=setInterval(()=>{if(document.hidden)return;void heartbeat().then(refreshViewers);},30000);
