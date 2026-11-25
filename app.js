@@ -28,12 +28,15 @@ function navigate(href){history.pushState(null,'',href);render();window.scrollTo
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
-function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver en TVF90 ↗</span></button>`).join('');}
+function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
 function play(signal){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection');
   const status=section.querySelector('#signalStatus');
   const actions=section.querySelector('.video-frame-link');
+  const player=section.querySelector('.video-frame');
+  player.replaceChildren();
+  player.parentElement.hidden=true;
   section.hidden=false;
   actions.replaceChildren();
   document.querySelectorAll('[data-signal]').forEach(button=>{
@@ -43,18 +46,28 @@ function play(signal){
     status.textContent='TVF90 aún no publicó un enlace para esta señal.';
     return;
   }
+  const frame=document.createElement('iframe');
+  frame.className='external-player';
+  frame.title='Reproductor de TVF90 · '+signal.name;
+  frame.src=signal.playerUrl;
+  frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';
+  frame.allowFullscreen=true;
+  frame.referrerPolicy='strict-origin-when-cross-origin';
+  player.parentElement.hidden=false;
+  player.append(frame);
+
   const watch=document.createElement('a');
   watch.className='primary-button';
   watch.href=signal.playerUrl;
   watch.target='_blank';
   watch.rel='noopener noreferrer';
-  watch.textContent='Ver '+signal.name+' en TVF90 ↗';
+  watch.textContent='Abrir en TVF90 ↗';
   actions.append(watch);
-  status.textContent='La transmisión se abre en una pestaña de TVF90.';
+  status.textContent=signal.name+' · Reproductor de TVF90';
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="status-actions video-frame-link"></div><p id="signalStatus" class="signal-status" role="status"></p></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div class="status-actions video-frame-link"></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
     advice.textContent='Si TVF90 no abre desde Telegram, toca ⋯ y elige «Abrir en el navegador».';
