@@ -8,18 +8,16 @@ function damitv_player_url(string $url): bool {
     if(!$p||($p['scheme']??'')!=='https'||!in_array($p['host']??'',['damitv.st','ondemand.st','ondemand.to'],true)||isset($p['user'])||isset($p['pass'])||isset($p['port'])||isset($p['fragment']))return false;
     parse_str($p['query']??'',$q);
     if(($p['path']??'')==='/embed/')return is_string($q['id']??null)&&preg_match('~^[a-zA-Z0-9_/-]{1,180}$~D',$q['id'])===1&&count($q)===1;
-    if(($p['path']??'')!=='/player/hls/'||!is_string($q['url']??null)||!preg_match('/^[0-9]{1,8}$/D',(string)($q['v']??''))||array_diff(array_keys($q),['v','url','name']))return false;
+    if(($p['path']??'')!=='/player/hls/'||!is_string($q['url']??null)||!preg_match('/^[0-9]{1,12}$/D',(string)($q['v']??''))||array_diff(array_keys($q),['v','url','name']))return false;
     if(isset($q['name'])&&!is_string($q['name']))return false;
     $target=$q['url'];if(strlen($target)>7000||preg_match('/[\x00-\x20]/',$target))return false;
     if(str_starts_with($target,'/')&&!str_starts_with($target,'//'))return true;
     $nested=parse_url($target);$host=strtolower($nested['host']??'');
-    return ($nested['scheme']??'')==='https'&&($host==='damitv.st'||str_ends_with($host,'.damitv.st'))&&!isset($nested['user'])&&!isset($nested['pass'])&&!isset($nested['port'])&&!isset($nested['fragment']);
+    return ($nested['scheme']??'')==='https'&&(in_array($host,['damitv.st','ondemand.st','ondemand.to'],true)||str_ends_with($host,'.damitv.st'))&&!isset($nested['user'])&&!isset($nested['pass'])&&!isset($nested['port'])&&!isset($nested['fragment']);
 }
 function damitv_canonical(string $url): string {
     if(!damitv_player_url($url))throw new RuntimeException('CHANNEL_UNAVAILABLE');
-    $p=parse_url($url);parse_str($p['query']??'',$q);
-    $params=$p['path']==='/embed/'?['id'=>$q['id']]:['v'=>$q['v'],'url'=>$q['url'],'name'=>$q['name']??'Live'];
-    return 'https://'.$p['host'].$p['path'].'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
+    return $url;
 }
 function damitv_signal_id(string $url): string {
     parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);
@@ -62,6 +60,11 @@ function normalize_damitv_agenda(array $payload): array {
             $sport=(string)($row['category_name']??$category['category']??'');
             $sport=match($sport){'american-football'=>'American Football','football'=>'Soccer','fight'=>'Combat sports',default=>$sport};
             $event=['id'=>fingerprint('damitv:event:'.$id),'legacyIds'=>[],'title'=>$title,'league'=>mb_substr($league,0,120),'sport'=>mb_substr($sport,0,80),'startsAt'=>iso($start),'time'=>(new DateTimeImmutable('@'.$start))->setTimezone(new DateTimeZone('America/Caracas'))->format('H:i'),'signals'=>array_values($signals)];
+            if(preg_match('/^espn-([0-9]+)$/D',$id,$match)) {
+                $embedQuery=parse_url($row['embed']??'',PHP_URL_QUERY);
+                parse_str($embedQuery??'',$params);
+                if(($params['id']??null)==='m'.$match[1])$event['providerPage']='https://ondemand.st/live/m'.$match[1];
+            }
             foreach(['home'=>'homeLogo','away'=>'awayLogo'] as $team=>$field){$logo=$row['teams'][$team]['badge']??null;if(is_string($logo)&&agenda_logo_url($logo))$event[$field]=$logo;}
             $end=$row['ends_at']??null;if(is_numeric($end)&&$end>$start)$event['durationMinutes']=max(5,min(1440,(int)ceil(($end-$start)/60)));
             if(in_array($row['status']??'',['live','upcoming','finished','ended'],true))$event['providerLive']=$row['status']==='live';

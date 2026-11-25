@@ -8,14 +8,13 @@ export function providerPlayerURL(value){
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/player/hls/'){
     const source=url.searchParams.get('url');
     const version=url.searchParams.get('v')||'';
-    if(!source||!/^\d{1,8}$/.test(version))throw Error('El reproductor no es válido.');
+    if(!source||!/^\d{1,12}$/.test(version))throw Error('El reproductor no es válido.');
     const media=new URL(source,url.origin);
     const local=source.startsWith('/')&&!source.startsWith('//')&&media.origin===url.origin;
-    const provider=media.hostname==='damitv.st'||media.hostname.endsWith('.damitv.st');
+    const provider=['damitv.st','ondemand.st','ondemand.to'].includes(media.hostname)||media.hostname.endsWith('.damitv.st');
     if(media.protocol!=='https:'||media.username||media.password||media.port||media.hash||(!local&&!provider))
       throw Error('El reproductor no es válido.');
-    const params=new URLSearchParams({v:version,url:source,name:url.searchParams.get('name')||'Live'});
-    return url.origin+url.pathname+'?'+params;
+    return url.href;
   }
   if(url.hostname==='tvf90.com' && /^\/(online|1|2|3|5|hd|canal|plus1)\.php$/.test(url.pathname) && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(url.hostname==='stream04.lat' && url.pathname==='/libre/live1.php' && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));

@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261125m';
+import {createExternalPlayer} from './external-player.js?v=20261125n';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -106,6 +106,15 @@ function chooser(event,signals){
       main.querySelector('#providerRetry').hidden=true;
       main.querySelector('#providerRetryHint').hidden=true;
     };
+  }
+  if(/^https:\/\/ondemand\.st\/live\/m[0-9]+$/.test(event?.providerPage||'')){
+    const fallback=document.createElement('a');
+    fallback.className='primary-button';
+    fallback.href=event.providerPage;
+    fallback.target='_blank';
+    fallback.rel='noopener noreferrer';
+    fallback.textContent='Ver en OnDemand ↗';
+    main.querySelector('.status-actions').append(fallback);
   }
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
