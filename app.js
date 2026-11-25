@@ -1,6 +1,6 @@
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
-import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
+import {teamBadges,handleBadgeError} from './team-badges.js?v=20261125y';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 
