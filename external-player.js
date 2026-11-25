@@ -4,6 +4,7 @@ export function providerPlayerURL(value){
     url=new URL(atob(url.searchParams.get('r')||''));
   }
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
+  if(url.hostname==='tvf90.com' && /^\/(1|2|3|5|hd|canal|plus1)\.php$/.test(url.pathname) && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(url.hostname==='stream04.lat' && url.pathname==='/libre/live1.php' && /^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))return url.origin+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   if(['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)){
     if(!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');

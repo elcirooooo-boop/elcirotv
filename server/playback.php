@@ -31,8 +31,8 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
 }
 function external_playback(array $signal): array {
     $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
-        if(fulbito_player_url($source['url'])){
-            $url=fulbito_canonical($source['url']);
+        if(parse_url($source['url'],PHP_URL_HOST)==='tvf90.com' && classic_player_url($source['url'])){
+            $url=$source['url'];
             $sources[$url]=['url'=>$url,'sourceKey'=>fingerprint($url)];
         }
     }
