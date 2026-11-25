@@ -56,7 +56,7 @@ function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=fals
         if($publishedOnly&&preg_match('/^(.+?)\s+[-–—]\s+(.+)$/u',$title,$parts)){$league=trim($parts[1]);$match=trim($parts[2]);}
         $id=fingerprint(iso($start).'|'.slugify($league).'|'.slugify($match));$signals=[];$seen=[];
         foreach(rows($a['embeds']??[]) as $i=>$embed){$embed=attrs($embed);$url=$embed['embed_iframe']??$embed['iframe']??$embed['url']??'';if(!$url)continue;
-            try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;if($publishedOnly)$url=fulbito_canonical($url);}catch(Throwable){continue;}
+            try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(!$publishedOnly&&isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;if($publishedOnly)$url=fulbito_canonical($url);}catch(Throwable){continue;}
             if(isset($seen[$url]))continue;$seen[$url]=true;$signals[]=['id'=>fingerprint($url),'name'=>mb_substr($embed['embed_name']??$embed['name']??'Opción '.($i+1),0,100),'url'=>$url,'lang'=>$embed['lang']??''];
             if($publishedOnly){$signals[count($signals)-1]['publishedOnly']=true;$signals[count($signals)-1]['id']=fulbito_signal_id($url);}
         }
@@ -79,15 +79,21 @@ function agenda_logo_url(string $url): bool {
         default=>false
     };
 }
+function fulbito_wrapper(string $url): bool {
+    return preg_match('~^https://fulbitotv\.xyz/embed/eventos\.html\?r=[A-Za-z0-9%+/=_-]{1,4096}$~D',$url)===1;
+}
 function fulbito_player_url(string $url): bool {
+    if(fulbito_wrapper($url))return true;
     $p=parse_url($url);parse_str($p['query']??'',$q);
     return ($p['scheme']??'')==='https'&&!isset($p['user'])&&!isset($p['pass'])&&!isset($p['port'])&&in_array(strtolower($p['host']??''),['streamxhd.sbs','stream-xhd.com','streamxhd.st'],true)&&($p['path']??'')==='/live1.php'&&preg_match('/^[-a-z0-9_]{1,80}$/iD',(string)($q['stream']??''))===1;
 }
 function fulbito_canonical(string $url): string {
+    if(fulbito_wrapper($url))return $url;
     if(!fulbito_player_url($url))throw new RuntimeException('CHANNEL_UNAVAILABLE');
-    parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);return 'https://streamxhd.sbs/live1.php?stream='.rawurlencode($q['stream']);
+    parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);return $url;
 }
 function fulbito_signal_id(string $url): string {
+    if(fulbito_wrapper($url))return fingerprint($url);
     parse_str(parse_url($url,PHP_URL_QUERY)??'',$q);return fingerprint('fulbito:'.strtolower((string)($q['stream']??$url)));
 }
 function combine_fulbito_sources(array $events,array $channels): array {
@@ -177,12 +183,12 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-fulbito-sandbox-v2';$old=cached_read($key);
+    $key='agenda-fulbito-sandbox-v3';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>fulbito_channels(),'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('fulbito-sandbox-v2',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
+        $feed=agenda_feed('fulbito-sandbox-v3',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
         $previous=$old??cached_read('agenda-streamxhd-only-v5');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);

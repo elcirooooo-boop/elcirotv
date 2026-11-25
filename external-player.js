@@ -1,9 +1,10 @@
 export function providerPlayerURL(value){
   const url=new URL(value);
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
+  if(url.origin==='https://fulbitotv.xyz'&&url.pathname==='/embed/eventos.html'&&url.searchParams.has('r'))return url.href;
   if(['streamxhd.sbs','stream-xhd.com','streamxhd.st','streamxhd.click'].includes(url.hostname)){
     if(!['/live1.php','/live2.php'].includes(url.pathname)||!/^[-a-z0-9_]{1,80}$/i.test(url.searchParams.get('stream')||''))throw Error('El reproductor de StreamXHD no es válido.');
-    const host=url.hostname==='stream-xhd.com'?'streamxhd.sbs':url.hostname;
+    const host=url.hostname;
     return 'https://'+host+url.pathname+'?stream='+encodeURIComponent(url.searchParams.get('stream'));
   }
   if(url.hostname==='embed.ksdjugfssddeports.com'&&/^\/embed2?\/[a-z0-9]{1,80}\.php$/i.test(url.pathname)){
