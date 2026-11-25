@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261125q';
+import {createExternalPlayer} from './external-player.js?v=20261125r';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -57,8 +57,9 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
     retry.hidden=false;retryHint.hidden=false;
   };
   try{
-    let source;
-    for(let attempt=0;attempt<3;attempt++){
+    const directMatchora=data.provider==='matchora'&&signal.playerUrl;
+    let source=directMatchora?{transport:'embed',url:directMatchora}:null;
+    for(let attempt=0;!source&&attempt<3;attempt++){
       try{
         source=await preparedPlayback.read(identity,{refresh:refresh||attempt>0});
         break;
@@ -75,7 +76,11 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
     const target=new URL(source.url);
     if(source.transport!=='embed')throw Error('Reproductor no disponible.');
     status.textContent='Cargando '+signal.name+'…';
-    player=createExternalPlayer({container:section.querySelector('.video-frame'),sources:[{url:target.href}],name:signal.name,
+    const matchoraHosts=['matchora.pro','matchora.to','es.matchora.pro'];
+    const matchora=matchoraHosts.includes(target.hostname);
+    const sources=[{url:target.href}];
+    if(matchora)for(const host of matchoraHosts)if(host!==target.hostname)sources.push({url:'https://'+host+target.pathname});
+    player=createExternalPlayer({container:section.querySelector('.video-frame'),sources,rotateOnReload:matchora,name:signal.name,
       onLoad:()=>{if(active())status.textContent=signal.name+' · Reproductor externo';}
     });
     externalActive=true;
