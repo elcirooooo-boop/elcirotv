@@ -33,7 +33,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
-function play(signal,{activate=false}={}){
+function play(signal,{activate=false,standardPlayer=false}={}){
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection');
   const status=section.querySelector('#signalStatus');
@@ -64,7 +64,12 @@ function play(signal,{activate=false}={}){
   const frame=document.createElement('iframe');
   frame.className='external-player';
   frame.title='Reproductor de TVF90 · '+signal.name;
-  frame.src=signal.playerUrl;
+  const url=new URL(signal.playerUrl);
+  // TVF90's public pages for these channels embed this same player.
+  // On iPhone, load it in one frame and keep the full player for manual recovery.
+  const useSingleFrame=appleMobile&&!standardPlayer&&['dsports2','teleamazonas'].includes(url.searchParams.get('stream'));
+  if(useSingleFrame)url.pathname='/5.php';
+  frame.src=url.href;
   frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';
   frame.allowFullscreen=true;
   frame.referrerPolicy='strict-origin-when-cross-origin';
@@ -72,7 +77,7 @@ function play(signal,{activate=false}={}){
   player.append(frame);
 
   status.textContent=signal.name+' · Reproductor de TVF90';
-  reload.onclick=()=>play(signal,{activate:true});
+  reload.onclick=()=>play(signal,{activate:true,standardPlayer:useSingleFrame});
   const alternate=recovery.querySelector('[data-signal-alternate]');
   const next=tapToLoad&&[...main.querySelectorAll('[data-signal]')].find(button=>button.dataset.signal!==signal.id);
   alternate.hidden=!next;
