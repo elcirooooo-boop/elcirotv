@@ -184,31 +184,6 @@ function listing(channels=false){
   };main.querySelector('#search').oninput=update;if(main.querySelector('#league'))main.querySelector('#league').onchange=update;update();
   refreshListing=()=>{const select=main.querySelector('#league');if(select){const value=select.value;select.innerHTML=leagueOptions();select.value=[...select.options].some(o=>o.value===value)?value:'';}update();};
 }
-function scoreBatVideos(){
-  main.innerHTML=intro('Vídeos de fútbol','Directos y resúmenes oficiales de ScoreBat.')+
-    '<div class="scorebat-controls" role="group" aria-label="Tipo de vídeo"><button class="primary-button" type="button" data-scorebat="live" aria-pressed="true">Directos</button><button class="primary-button" type="button" data-scorebat="highlights" aria-pressed="false">Resúmenes</button></div><div id="scorebat-widget"></div>';
-  const buttons=main.querySelectorAll('[data-scorebat]');
-  const widget=main.querySelector('#scorebat-widget');
-  const show=mode=>{
-    const live=mode==='live';
-    const frame=document.createElement('iframe');
-    frame.title=live?'Directos de fútbol · ScoreBat':'Resúmenes de fútbol · ScoreBat';
-    frame.className='scorebat-frame';
-    frame.src='https://www.scorebat.com/embed/videofeed/'+(live?'live-stream/':'')+'?language=es';
-    frame.sandbox='allow-scripts allow-same-origin allow-presentation';
-    frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';
-    frame.allowFullscreen=true;
-    frame.referrerPolicy='strict-origin-when-cross-origin';
-    for(const button of buttons)button.setAttribute('aria-pressed',String(button.dataset.scorebat===mode));
-    widget.replaceChildren(frame);
-  };
-  for(const button of buttons)button.onclick=()=>{
-    if(button.getAttribute('aria-pressed')!=='true')show(button.dataset.scorebat);
-  };
-  document.title='Vídeos de fútbol · El Ciro TV';
-  show('live');
-}
-
 async function render(){
   refreshListing=()=>{};
   stop();currentMatch='';
@@ -216,11 +191,6 @@ async function render(){
   document.title='El Ciro · Deportes en directo';
   document.querySelectorAll('.main-nav a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   try{
-    if(location.pathname==='/videos'){
-      scoreBatVideos();
-      if(tracking)void heartbeat();
-      return;
-    }
     if(!data)await load();
     if(location.pathname==='/')listing();
     else if(location.pathname==='/canales')listing(true);
@@ -245,7 +215,7 @@ async function render(){
 }
 setInterval(()=>updateLiveStatuses(main),15000);
 async function refreshAgenda(){
-  if(document.hidden||agendaLoading||location.pathname==='/videos')return;
+  if(document.hidden||agendaLoading)return;
   agendaLoading=true;
   try{data=await api('agenda');for(const indicator of main.querySelectorAll('[data-provider-live]'))indicator.hidden=!data.events.find(e=>e.id===indicator.dataset.providerLive)?.providerLive;}catch{/* Retain the last working agenda during a temporary outage. */}
   finally{agendaLoading=false;if(data)refreshListing();}
