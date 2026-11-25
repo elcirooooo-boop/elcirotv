@@ -54,7 +54,15 @@ try {
         if(!is_array($body)||!preg_match('/^[a-f0-9-]{36}$/D',$body['session']??''))respond(['error'=>'Sesión no válida.'],400);
         $match=$body['match']??'';if($match&&!in_array($match,array_column(agenda()['events'],'id'),true))respond(['error'=>'Partido no válido.'],400);
         $dir=storage().'/viewers';if(!is_dir($dir))mkdir($dir,0700);$path=$dir.'/'.$body['session'].'.json';
-        file_put_contents($path,json_encode(['match'=>$match,'playing'=>($body['playing']??false)===true,'at'=>time()]),LOCK_EX);respond(['ok'=>true]);
+        $playing=$match!==''&&($body['playing']??false)===true;
+        $previous=is_file($path)?json_decode(file_get_contents($path)?:'',true):null;
+        $previousMatch=($previous['playing']??false)===true&&time()-($previous['at']??0)<75?($previous['match']??''):'';
+        file_put_contents($path,json_encode(['match'=>$match,'playing'=>$playing,'at'=>time()]),LOCK_EX);
+        if($previousMatch!==($playing?$match:'')){
+            $counterCache=storage().'/viewer-counts.json';
+            if(is_file($counterCache))@unlink($counterCache);
+        }
+        respond(['ok'=>true]);
     }
     if($action==='viewers'){
         $cached=cached_read('viewer-counts');if(($cached['until']??0)>time())respond(['counts'=>(object)$cached['counts']]);

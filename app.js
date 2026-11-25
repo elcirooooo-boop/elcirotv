@@ -13,7 +13,7 @@ const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL C
 let playerFullscreen,stopSignalRecovery=()=>{};
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
-let data,currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
+let data,currentMatch='',reportedMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
@@ -22,7 +22,10 @@ async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
-  const payload={session,match:currentMatch,playing:false};
+  const match=currentMatch&&!document.hidden&&main.querySelector('#videoSection .video-frame iframe')?currentMatch:'';
+  if(!match&&!reportedMatch)return presenceQueue;
+  reportedMatch=match;
+  const payload={session,match,playing:Boolean(match)};
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
   return presenceQueue;
 }
@@ -98,6 +101,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   };
   if(!recoveryAttempt&&navigator.onLine)startupTimeout=setTimeout(retryOnce,20000);
   player.append(frame);
+  if(tracking&&currentMatch!==reportedMatch)void heartbeat().then(refreshViewers);
   reload.onclick=()=>play(signal,{standardPlayer:useSingleFrame});
   recovery.hidden=false;
   fullscreen.hidden=false;
@@ -206,5 +210,5 @@ async function refreshAgenda(){
 }
 setInterval(()=>void refreshAgenda(),60000);
 document.addEventListener('visibilitychange',()=>{updateLiveStatuses(main);void refreshAgenda();void heartbeat().then(refreshViewers);});
-addEventListener('pagehide',()=>{navigator.sendBeacon(apiURL('presence',phpAPI),new Blob([JSON.stringify({session,match:currentMatch,playing:false})],{type:'application/json'}));});
+addEventListener('pagehide',()=>{if(!reportedMatch)return;navigator.sendBeacon(apiURL('presence',phpAPI),new Blob([JSON.stringify({session,match:'',playing:false})],{type:'application/json'}));});
 void render();
