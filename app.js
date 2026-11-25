@@ -1,3 +1,4 @@
+import {watchPlayerConnection} from './external-player.js?v=20261125ae';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
@@ -9,7 +10,7 @@ document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerFullscreen;
+let playerFullscreen,stopSignalRecovery=()=>{};
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
 let data,currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
@@ -32,7 +33,9 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
-function play(signal,{reveal=false,standardPlayer=false}={}){
+function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={}){
+  stopSignalRecovery();
+  stopSignalRecovery=()=>{};
   updateMatchShare(signal);
   const section=document.querySelector('#videoSection');
   const status=section.querySelector('#signalStatus');
@@ -65,9 +68,36 @@ function play(signal,{reveal=false,standardPlayer=false}={}){
   frame.allowFullscreen=true;
   frame.referrerPolicy='strict-origin-when-cross-origin';
   player.parentElement.hidden=false;
+  status.textContent=signal.name+' · Abriendo reproductor…';
+  let startupTimeout;
+  const clearStartup=()=>clearTimeout(startupTimeout);
+  const retryOnce=()=>{
+    clearStartup();
+    if(!recoveryAttempt&&frame.isConnected&&!document.hidden&&navigator.onLine){
+      play(signal,{standardPlayer:useSingleFrame,recoveryAttempt:true});
+    }
+  };
+  frame.addEventListener('load',()=>{
+    clearStartup();
+    if(frame.isConnected)status.textContent=signal.name+' · Reproductor de TVF90';
+  },{once:true});
+  frame.addEventListener('error',retryOnce,{once:true});
+  const connection=watchPlayerConnection({
+    onOffline:()=>{
+      clearStartup();
+      status.textContent='Sin conexión. La señal se recargará cuando vuelva.';
+    },
+    onReconnect:()=>{
+      if(frame.isConnected)play(signal,{standardPlayer:useSingleFrame});
+    },
+  });
+  stopSignalRecovery=()=>{
+    clearStartup();
+    connection.destroy();
+    frame.removeEventListener('error',retryOnce);
+  };
+  if(!recoveryAttempt&&navigator.onLine)startupTimeout=setTimeout(retryOnce,20000);
   player.append(frame);
-
-  status.textContent=signal.name+' · Reproductor de TVF90';
   reload.onclick=()=>play(signal,{standardPlayer:useSingleFrame});
   const alternate=recovery.querySelector('[data-signal-alternate]');
   const channelButtons=[...main.querySelectorAll('[data-signal]')];
@@ -143,6 +173,8 @@ function listing(channels=false){
   refreshListing=()=>{const select=main.querySelector('#league');if(select){const value=select.value;select.innerHTML=leagueOptions();select.value=[...select.options].some(o=>o.value===value)?value:'';}update();};
 }
 async function render(){
+  stopSignalRecovery();
+  stopSignalRecovery=()=>{};
   playerFullscreen?.destroy();
   playerFullscreen=null;
   refreshListing=()=>{};
