@@ -20,9 +20,9 @@ try {
         if(!$signal)foreach($current['events'] as $event)foreach($event['signals'] as $s)if($s['id']===$id){$signal=$s;break 2;}
         if(!$signal&&preg_match('/^[a-f0-9]{24}$/D',$id))$signal=published_signal($id);
         if(!$signal)respond(['error'=>'Esta señal ya no está publicada. Actualiza la agenda.'],404);
-        respond(streamxhd_relay_playback($signal,($_GET['refresh']??'')==='1'));
+        respond(external_playback($signal));
     }
-    if($action==='media'){
+    if($action==='media'){respond(['error'=>'La sesión anterior terminó. Actualiza la página.'],410);
         try{$permission=verify_media(is_string($_GET['t']??null)?$_GET['t']:'');}catch(Throwable){respond(['error'=>'La sesión venció. Recarga la señal.'],403);}
         $range=$_SERVER['HTTP_RANGE']??'';
         if($range!==''&&!preg_match('/^bytes=\d+-\d*$/D',$range))respond(['error'=>'Rango no válido.'],416);

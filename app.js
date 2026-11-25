@@ -1,4 +1,4 @@
-import {createLivePlayer} from './live-player.js?v=20261124a';
+import {createExternalPlayer} from './external-player.js?v=20261125a';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -72,27 +72,12 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
       }
     }
     if(!active())return;
-    if(source.transport==='relay'){
-      const video=document.createElement('video');video.controls=true;video.playsInline=true;video.preload='none';
-      video.setAttribute('aria-label','Reproductor · '+signal.name);
-      section.querySelector('.video-frame').replaceChildren(video);
-      let initial=source;
-      player=createLivePlayer({video,Hls:window.Hls,startupTimeout:8000,stallTimeout:12000,
-        resolveSource:async(excluded,abortSignal,{refresh:renew})=>{
-          const resolved=initial||(await preparedPlayback.read(identity,{refresh:renew,excluded,signal:abortSignal}));initial=null;
-          if(resolved.transport!=='relay')throw Object.assign(Error('Señal no disponible.'),{code:'CHANNEL_UNAVAILABLE'});
-          return resolved;
-        },
-        onStatus:text=>{if(active())status.textContent=signal.name+' · '+text;},
-        onProgress:()=>{if(active())externalActive=true;},
-        onState:()=>{if(active()){externalActive=!video.paused&&!video.ended;void heartbeat();}},
-        onUnavailable:unavailable,
-      });
-      retry.onclick=()=>void play(signal,signals,{refresh:true});
-      enableControls();
-      await player.start();
-    }
-    else throw Error('Esta señal no tiene un reproductor disponible.');
+    if(source.transport!=='embed')throw Error('Reproductor no disponible.');
+    player=createExternalPlayer({container:section.querySelector('.video-frame'),sources:[{url:source.url}],name:signal.name,
+      onLoad:()=>{if(active())status.textContent=signal.name+' · Toca reproducir dentro del vídeo.';}
+    });
+    externalActive=true;
+    retry.onclick=()=>player?.reload();
     if(active())void heartbeat().then(refreshViewers);
   }catch(error){if(error.code==='CHANNEL_UNAVAILABLE')unavailable();else if(active())status.textContent=error.message||'No se pudo abrir la señal.';}
   if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
