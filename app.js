@@ -99,21 +99,13 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   if(!recoveryAttempt&&navigator.onLine)startupTimeout=setTimeout(retryOnce,20000);
   player.append(frame);
   reload.onclick=()=>play(signal,{standardPlayer:useSingleFrame});
-  const alternate=recovery.querySelector('[data-signal-alternate]');
-  const channelButtons=[...main.querySelectorAll('[data-signal]')];
-  const current=channelButtons.findIndex(button=>button.dataset.signal===signal.id);
-  const next=appleMobile&&current>=0&&channelButtons.length>1
-    ?channelButtons[(current+1)%channelButtons.length]:null;
-  alternate.hidden=!next;
-  alternate.onclick=next?()=>next.click():null;
-  if(next)alternate.textContent='Probar '+next.querySelector('h2').textContent;
   recovery.hidden=false;
   fullscreen.hidden=false;
   if(reveal)requestAnimationFrame(()=>{if(frame.isConnected)player.parentElement.scrollIntoView({block:'start'});});
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si el vídeo se queda en negro o aparece un error, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button><button type="button" data-signal-alternate hidden></button></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si el vídeo se queda en negro o aparece un error, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   const section=main.querySelector('#videoSection');
   playerFullscreen=createPlayerFullscreen({section,button:section.querySelector('[data-fullscreen]')});
   if(telegramBrowser&&signals.length){
