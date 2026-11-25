@@ -38,12 +38,20 @@ function rows($value): array {return isset($value['data'])&&is_array($value['dat
 function attrs(array $value): array {return $value['attributes']??$value;}
 function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=false): array {
     $events=[];$raw=$payload['data']??$payload['events']??$payload;
+    if($publishedOnly && isset($raw[0]['leagues'])){
+        $fixtures=[];
+        foreach($raw as $sport)foreach($sport['leagues']??[] as $league)foreach($league['events']??[] as $fixture){
+            $fixture['attributes']['sport']=$sport['name']??'Deportes';
+            $fixtures[]=$fixture;
+        }
+        $raw=$fixtures;
+    }
     foreach($raw as $row){
         $a=attrs($row);$title=trim((string)($a['diary_description']??$a['title']??''));$hour=(string)($a['diary_hour']??$a['time']??'');$date=substr($a['date_diary']??$a['date']??today($now),0,10);
         $timestamp=str_contains($hour,'T')?$hour:$date.'T'.substr($hour?:'12:00:00',0,8);
         if(!preg_match('/[zZ]$|[+-]\d{2}:?\d{2}$/',$timestamp))$timestamp.='-05:00';
         try{$start=(new DateTimeImmutable($timestamp))->getTimestamp();}catch(Throwable){continue;}
-        if(!$title||today($start)!==today($now))continue;
+        if(!$title||(!$publishedOnly&&today($start)!==today($now)))continue;
         $colon=strpos($title,':');$league=$colon===false?($a['sport']??'Deportes'):trim(substr($title,0,$colon));$match=$colon===false?$title:trim(substr($title,$colon+1));
         if($publishedOnly&&preg_match('/^(.+?)\s+[-–—]\s+(.+)$/u',$title,$parts)){$league=trim($parts[1]);$match=trim($parts[2]);}
         $id=fingerprint(iso($start).'|'.slugify($league).'|'.slugify($match));$signals=[];$seen=[];
@@ -169,12 +177,12 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-fulbito-sandbox-v1';$old=cached_read($key);
+    $key='agenda-fulbito-sandbox-v2';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'fulbito','day'=>today(),'events'=>[],'channels'=>fulbito_channels(),'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        $feed=agenda_feed('fulbito-sandbox-v1',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
+        $feed=agenda_feed('fulbito-sandbox-v2',fn()=>normalize_agenda(fetch_json('https://fulbitotv.xyz/agenda'),null,true));
         if($feed===null&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
         $previous=$old??cached_read('agenda-streamxhd-only-v5');
         $events=retain_agenda_links(merge_agendas([$feed??[]]),$previous['events']??[]);
