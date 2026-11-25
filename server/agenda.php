@@ -5,6 +5,7 @@ require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
 require_once __DIR__.'/damitv-agenda.php';
 require_once __DIR__.'/matchora-agenda.php';
+require_once __DIR__.'/sportsrc.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -186,6 +187,9 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
+    if(sportsrc_key()!==''){
+        try{return sportsrc_agenda();}catch(Throwable $error){error_log('El Ciro SportSRC: '.$error->getMessage());}
+    }
     $key='agenda-matchora-v2';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
@@ -211,7 +215,7 @@ function public_agenda(array $data): array {
         $key=($signal['provider']??'')==='embedlatam'?'url:'.$signal['url']:'id:'.$signal['id'];
         if(isset($listed[$key]))return;$listed[$key]=true;$channels[$signal['id']]=$hide($signal);
     };
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','matchora','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
-    $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$add($s);$s=$hide($s);}unset($event,$s);
+    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','matchora','sportsrc','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
+    $events=$data['events'];foreach($events as &$event){unset($event['sportsrcId']);foreach($event['signals'] as &$s){$add($s);$s=$hide($s);}unset($s);}unset($event);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }

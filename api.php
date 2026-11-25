@@ -9,11 +9,18 @@ require __DIR__.'/server/media-cache.php';
 header('X-Content-Type-Options: nosniff');header('Cache-Control: no-store');
 function respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE);exit;}
 $action=$_GET['a']??'';
-if(!is_string($action)||!in_array($action,['agenda','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
+if(!is_string($action)||!in_array($action,['agenda','match','play','media','presence','viewers'],true))respond(['error'=>'Ruta no encontrada.'],404);
 $method=$action==='presence'?'POST':'GET';if(($_SERVER['REQUEST_METHOD']??'')!==$method){header('Allow: '.$method);respond(['error'=>'Método no permitido.'],405);}
 try {
     if(!extension_loaded('curl')||!extension_loaded('mbstring'))throw new RuntimeException('PHP_EXTENSIONS_REQUIRED');
     if($action==='agenda')respond(public_agenda(agenda()));
+    if($action==='match'){
+        $match=$_GET['id']??'';
+        if(!is_string($match)||!preg_match('/^[a-f0-9]{24}$/D',$match))respond(['error'=>'Partido no válido.'],400);
+        $signals=sportsrc_match_channels($match);
+        if($signals===null)respond(['error'=>'Este partido ya no está disponible.'],404);
+        respond(['signals'=>$signals]);
+    }
     if($action==='play'){
         $id=is_string($_GET['source']??null)?$_GET['source']:'';$signal=null;
         $current=agenda();foreach($current['channels']??[] as $s)if($s['id']===$id){$signal=$s;break;}
