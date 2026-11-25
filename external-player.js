@@ -52,7 +52,9 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     if(disposed)return;
     if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    const embedHost=new URL(urls[index]).hostname;
+    const isMatchora=['matchora.to','matchora.pro','es.matchora.pro'].includes(embedHost);
+    if(!isMatchora)frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;
