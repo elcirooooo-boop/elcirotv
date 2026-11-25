@@ -39,7 +39,11 @@ export function createExternalPlayer({container,sources,name,onChange=()=>{},onO
     if(disposed)return;
     if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    const target=new URL(urls[index]);
+    const tvf90PublicPlayer=target.origin==='https://tvf90.com'&&target.pathname==='/online.php';
+    let sandbox='allow-scripts allow-same-origin allow-presentation';
+    if(tvf90PublicPlayer)sandbox+=' allow-popups';
+    frame.setAttribute('sandbox',sandbox);
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;

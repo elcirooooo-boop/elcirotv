@@ -32,12 +32,10 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
 function external_playback(array $signal): array {
     $sources=[];
     $published=$signal['url']??'';
-    if(parse_url($published,PHP_URL_HOST)==='tvf90.com' && classic_player_url($published)) {
-        $sources[$published]=['url'=>$published,'sourceKey'=>fingerprint($published)];
-    }
-    foreach($signal['sources']??[] as $source){
-        if(parse_url($source['url'],PHP_URL_HOST)==='tvf90.com' && classic_player_url($source['url'])){
-            parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $query);
+    $candidates=array_unique(array_merge([$published],array_column($signal['sources']??[],'url')));
+    foreach($candidates as $candidate){
+        if(parse_url($candidate,PHP_URL_HOST)==='tvf90.com' && classic_player_url($candidate)){
+            parse_str(parse_url($candidate, PHP_URL_QUERY) ?? '', $query);
             $stream = $query['stream'] ?? '';
             if (!is_string($stream) || !preg_match('/^[-a-z0-9_]{1,80}$/iD', $stream)) continue;
             $url = 'https://tvf90.com/online.php?stream=' . rawurlencode($stream);
