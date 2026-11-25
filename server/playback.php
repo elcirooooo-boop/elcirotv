@@ -30,7 +30,12 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         'sourceKey'=>fingerprint($page),'expiresAt'=>iso($expiry),'renewInSeconds'=>300];
 }
 function external_playback(array $signal): array {
-    $sources=[];foreach($signal['sources']??[['url'=>$signal['url']]] as $source){
+    $sources=[];
+    $published=$signal['url']??'';
+    if(parse_url($published,PHP_URL_HOST)==='tvf90.com' && classic_player_url($published)) {
+        $sources[$published]=['url'=>$published,'sourceKey'=>fingerprint($published)];
+    }
+    foreach($signal['sources']??[] as $source){
         if(parse_url($source['url'],PHP_URL_HOST)==='tvf90.com' && classic_player_url($source['url'])){
             parse_str(parse_url($source['url'], PHP_URL_QUERY) ?? '', $query);
             $stream = $query['stream'] ?? '';
