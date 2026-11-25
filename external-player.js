@@ -4,6 +4,7 @@ export function providerPlayerURL(value){
     url=new URL(atob(url.searchParams.get('r')||''));
   }
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
+  if(['matchora.to','matchora.pro','es.matchora.pro'].includes(url.hostname)&&/^\/embed\/(match|channel)\/[a-z0-9_-]{1,80}$/i.test(url.pathname)&&!url.search&&!url.hash)return url.href;
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/embed/'&&/^[a-z0-9_\/-]{1,180}$/i.test(url.searchParams.get('id')||''))return url.origin+url.pathname+'?id='+encodeURIComponent(url.searchParams.get('id'));
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/player/hls/'){
     const source=url.searchParams.get('url');

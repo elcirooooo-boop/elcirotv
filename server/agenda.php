@@ -4,6 +4,7 @@ require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
 require_once __DIR__.'/damitv-agenda.php';
+require_once __DIR__.'/matchora-agenda.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -120,7 +121,7 @@ function team_identity(string $name,string $league): string {
     return count($matches)===1?$matches[0]['id']:'name:'.folded($name);
 }
 function fixture_identity(array $e): ?string {
-    $title=preg_replace('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/iu','',$e['title']);$title=preg_replace('/^Mexico City Game\s*[-–—:]\s*/iu','',$title);$names=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$title);
+    $title=preg_replace('/^Sabah Baku(?=\s+vs\s)/iu','Sabah',$e['title']);$title=preg_replace('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/iu','',$title);$title=preg_replace('/^Mexico City Game\s*[-–—:]\s*/iu','',$title);$names=preg_split('/\s+(?:vs?\.?|versus)\s+/iu',$title);
     if(count($names)!==2){$context=folded($e['league'].' '.$title);if(preg_match('/\bgolf\b/',$context))return 'session:golf:'.folded($title);if(preg_match('/\bmoto\s*gp\b/',$context))return 'session:motogp:'.trim(preg_replace('/\b(motogp|moto gp|gp|gran premio|deportes)\b/','',$context));return null;}
     $league=$e['league'];if(preg_match('/^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/iu',$e['title'],$m))$league=$m[1];$league=folded($league);
     $league=match($league){'ucl'=>'uefa champions league','nba usa'=>'nba','liga 1 argentina','liga profesional','liga profesional argentina'=>'liga profesional argentina','liga 1 colombia','primera a','liga betplay','liga betplay dimayor'=>'colombia primera a','laliga ea sports'=>'laliga','laliga smartbank','laliga hypermotion'=>'laliga 2','bundesliga 2'=>'2 bundesliga','liga de ecuador','serie a italia'=>'serie a','ligue 1 francia'=>'ligue 1','mls usa'=>'mls','liga de portugal'=>'primeira liga','liga turquia'=>'super lig','premiership escocia'=>'premiership','liga 1 chile','liga de costa rica'=>'primera division','liga 1 peru'=>'liga 1','copa do brasil'=>'copa de brasil',default=>$league};
@@ -185,18 +186,18 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-ondemand-v4';$old=cached_read($key);
+    $key='agenda-matchora-v1';$old=cached_read($key);
     if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
     $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'matchora','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
     try{
-        try{$feed=normalize_damitv_agenda(fetch_json('https://ondemand.st/papi/api/streams'));}
+        try{$feed=normalize_matchora_agenda(fetch_json('https://matchora.to/api/v1/schedule?watchable=1'));}
         catch(Throwable $error){
             if($old&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-            error_log('El Ciro DAMITV: '.$error->getMessage());
-            return ['provider'=>'damitv','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];
+            error_log('El Ciro Matchora: '.$error->getMessage());
+            return ['provider'=>'matchora','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];
         }
-        $previous=$old??cached_read('agenda-ondemand-v3')??cached_read('agenda-tvf90-direct-v1');
+        $previous=$old??cached_read('agenda-ondemand-v4')??cached_read('agenda-ondemand-v3')??cached_read('agenda-tvf90-direct-v1');
         $events=retain_agenda_links($feed['events'],$previous['events']??[]);
         $channels=$feed['channels'];
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
@@ -210,7 +211,7 @@ function public_agenda(array $data): array {
         $key=($signal['provider']??'')==='embedlatam'?'url:'.$signal['url']:'id:'.$signal['id'];
         if(isset($listed[$key]))return;$listed[$key]=true;$channels[$signal['id']]=$hide($signal);
     };
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
+    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','matchora','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$add($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }
