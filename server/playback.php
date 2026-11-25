@@ -31,7 +31,7 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
 }
 function external_playback(array $signal): array {
     $url=$signal['url']??'';
-    if(!libre_player_url($url)&&(!damitv_player_url($url)||parse_url($url,PHP_URL_PATH)!=='/embed/'))throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    if(!damitv_player_url($url)||parse_url($url,PHP_URL_PATH)!=='/embed/')throw new RuntimeException('CHANNEL_UNAVAILABLE');
     return ['transport'=>'embed','name'=>$signal['name'],'url'=>$url];
 }
 function published_player_config(string $html): ?array {

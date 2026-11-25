@@ -1,4 +1,4 @@
-import {createExternalPlayer} from './external-player.js?v=20261125l';
+import {createExternalPlayer} from './external-player.js?v=20261125k';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
@@ -76,7 +76,7 @@ async function play(signal,signals,{refresh=false,tried=new Set()}={}){
     if(source.transport!=='embed')throw Error('Reproductor no disponible.');
     status.textContent='Cargando '+signal.name+'…';
     player=createExternalPlayer({container:section.querySelector('.video-frame'),sources:[{url:target.href}],name:signal.name,
-      onLoad:()=>{if(active())status.textContent=signal.name+' · Reproductor externo';}
+      onLoad:()=>{if(active())status.textContent=signal.name+' · Reproductor de OnDemand';}
     });
     externalActive=true;
     retryHint.hidden=false;
