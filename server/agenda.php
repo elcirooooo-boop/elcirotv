@@ -4,7 +4,6 @@ require_once __DIR__.'/futbolvivo.php';
 require_once __DIR__.'/streamxhd-agenda.php';
 require_once __DIR__.'/embedlatam.php';
 require_once __DIR__.'/damitv-agenda.php';
-require_once __DIR__.'/matchora-agenda.php';
 
 function catalog(): array {static $v;return $v??=json_decode(file_get_contents(__DIR__.'/catalog.json'),true,64,JSON_THROW_ON_ERROR);}
 function source_urls(?string $slug): array {
@@ -32,9 +31,46 @@ function classic_player_url(string $url): bool {
     if(($p['host']??'')==='la18hd.su'&&($p['path']??'')==='/vivo/canal.php'){parse_str($p['query']??'',$q);return preg_match('/^[-a-z0-9_]{1,80}$/iD',(string)($q['stream']??''))===1;}
     return fulbito_player_url($url);
 }
+function tvf90_public_url(string $url): ?string {
+    if(!preg_match('~^https://tvf90\.com/(?:online|1|2|3|5|hd|canal|plus1)\.php\?stream=([a-z0-9_-]{1,80})$~iD',$url,$match))return null;
+    return 'https://tvf90.com/online.php?stream='.rawurlencode($match[1]);
+}
+function tvf90_catalog(): array {
+    $cached=cached_read('tvf90-public-catalog');
+    if(($cached['until']??0)>time())return $cached['channels'];
+    try{
+        $groups=fetch_json('https://tvf90.com/status.json');
+        $channels=[];
+        foreach($groups as $group)foreach($group as $row){
+            $link=$row['Link']??null;
+            if(!is_string($link)||($url=tvf90_public_url($link))===null||($row['Estado']??'')!=='Activo')continue;
+            $id=fingerprint('tvf90:'.$url);
+            $channels[$id]=['id'=>$id,'name'=>mb_substr((string)($row['Canal']??'Canal'),0,100),
+                'url'=>$url,'playerUrl'=>$url,'lang'=>'','provider'=>'tvf90','publishedOnly'=>true];
+        }
+        $channels=array_values($channels);
+        cached_write('tvf90-public-catalog',['until'=>time()+600,'channels'=>$channels]);
+        return $channels;
+    }catch(Throwable){return $cached['channels']??[];}
+}
 function classic_events(): array {
     $events=normalize_agenda(fetch_json('https://api.wqxag.com/diaries.json'));
-    foreach($events as &$event)foreach($event['signals'] as &$signal)$signal['provider']='classic';unset($event,$signal);return $events;
+    foreach($events as &$event){
+        $signals=[];
+        foreach($event['signals'] as $signal){
+            $url=tvf90_public_url($signal['url']);
+            if($url===null||isset($signals[$url]))continue;
+            $signal['url']=$url;
+            $signal['playerUrl']=$url;
+            $signal['provider']='tvf90';
+            $signal['publishedOnly']=true;
+            unset($signal['sources']);
+            $signals[$url]=$signal;
+        }
+        $event['signals']=array_values($signals);
+    }
+    unset($event);
+    return $events;
 }
 function rows($value): array {return isset($value['data'])&&is_array($value['data'])?$value['data']:(is_array($value)?$value:[]);}
 function attrs(array $value): array {return $value['attributes']??$value;}
@@ -186,32 +222,31 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $key='agenda-matchora-v2';$old=cached_read($key);
-    if(($old['day']??'')===today()&&time()-($old['loaded']??0)<60)return $old;
-    $lock=fopen(storage().'/'.$key.'.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
-    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'matchora','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];}
-    try{
-        try{$feed=normalize_matchora_agenda(fetch_json('https://matchora.to/api/v1/schedule?watchable=1'));}
-        catch(Throwable $error){
-            if($old&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-            error_log('El Ciro Matchora: '.$error->getMessage());
-            return ['provider'=>'matchora','day'=>today(),'events'=>[],'channels'=>[],'updatedAt'=>iso(time()),'stale'=>true];
-        }
-        $previous=$old??cached_read('agenda-ondemand-v4')??cached_read('agenda-ondemand-v3')??cached_read('agenda-tvf90-direct-v1');
-        $events=retain_agenda_links($feed['events'],$previous['events']??[]);
-        $channels=$feed['channels'];
+    $old=cached_read('agenda-tvf90-public-v1');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $lock=fopen(storage().'/agenda-tvf90-public-v1.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'tvf90','day'=>today(),'events'=>[],'channels'=>tvf90_catalog(),'updatedAt'=>iso(time()),'stale'=>true];}
+    try{$feeds=[];
+        $feeds[]=agenda_feed('tvf90-public-v1',fn()=>classic_events());
+        $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
+        if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
+        $previous=$old??cached_read('agenda-matchora-v2')??cached_read('agenda-tvf90-direct-v1');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=tvf90_catalog();
+        if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>1,'provider'=>'matchora','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>false];cached_write($key,$data);return $data;
+        $data=['version'=>3,'provider'=>'tvf90','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-public-v1',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
-    $hide=function($signal){if((($signal['provider']??'')==='futbolvivo'&&futbolvivo_player_url($signal['url']))||(($signal['provider']??'')==='matchora'&&matchora_embed($signal['url'])))$signal['playerUrl']=$signal['url'];unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);return $signal;};$channels=[];
+    $hide=function($signal){
+        if(($signal['playerUrl']??'')==='')unset($signal['playerUrl']);
+        unset($signal['url'],$signal['sources'],$signal['publishedOnly'],$signal['provider']);
+        return $signal;
+    };$channels=[];
     $listed=[];
     $add=function($signal)use(&$channels,&$listed,$hide){
         $key=($signal['provider']??'')==='embedlatam'?'url:'.$signal['url']:'id:'.$signal['id'];
         if(isset($listed[$key]))return;$listed[$key]=true;$channels[$signal['id']]=$hide($signal);
     };
-    foreach(in_array($data['provider']??'',['classic','fulbito','futbolvivo','streamxhd','damitv','matchora','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
+    foreach(in_array($data['provider']??'',['tvf90','classic','fulbito','futbolvivo','streamxhd','damitv','streamxhd-zlive','streamxhd-embedlatam'],true)?($data['channels']??[]):catalog_signals() as $s)$add($s);
     $events=$data['events'];foreach($events as &$event)foreach($event['signals'] as &$s){$add($s);$s=$hide($s);}unset($event,$s);
     return ['provider'=>$data['provider']??'','day'=>$data['day'],'updatedAt'=>$data['updatedAt'],'stale'=>$data['stale'],'events'=>$events,'channels'=>array_values($channels)];
 }

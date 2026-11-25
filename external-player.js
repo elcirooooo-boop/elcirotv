@@ -4,7 +4,6 @@ export function providerPlayerURL(value){
     url=new URL(atob(url.searchParams.get('r')||''));
   }
   if(url.protocol!=='https:'||url.username||url.password||url.port)throw Error('El reproductor no es válido.');
-  if(['matchora.to','matchora.pro','es.matchora.pro'].includes(url.hostname)&&/^\/embed\/(match|channel)\/[a-z0-9_-]{1,80}$/i.test(url.pathname)&&!url.search&&!url.hash)return url.href;
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/embed/'&&/^[a-z0-9_\/-]{1,180}$/i.test(url.searchParams.get('id')||''))return url.origin+url.pathname+'?id='+encodeURIComponent(url.searchParams.get('id'));
   if(['damitv.st','ondemand.st','ondemand.to'].includes(url.hostname)&&url.pathname==='/player/hls/'){
     const source=url.searchParams.get('url');
@@ -43,7 +42,7 @@ export function watchPlayerConnection({window=globalThis.window,document=globalT
   if(lost)onOffline();
   return {reset(){cancel();lost=window.navigator?.onLine===false;},destroy(){disposed=true;cancel();window.removeEventListener('offline',offline);window.removeEventListener('online',recover);document.removeEventListener('visibilitychange',recover);}};
 }
-export function createExternalPlayer({container,sources,name,rotateOnReload=false,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
+export function createExternalPlayer({container,sources,name,onChange=()=>{},onOffline=()=>{},onLoad=()=>{},document=globalThis.document,window=globalThis.window}){
   const urls=[...new Set(sources.map(s=>providerPlayerURL(s.url)))];
   if(!urls.length)throw Error('Este canal no tiene un reproductor publicado.');
   let index=0,disposed=false,frame;
@@ -52,9 +51,7 @@ export function createExternalPlayer({container,sources,name,rotateOnReload=fals
     if(disposed)return;
     if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}
     frame=document.createElement('iframe');frame.title='Reproductor externo · '+name;
-    const embedHost=new URL(urls[index]).hostname;
-    const isMatchora=['matchora.to','matchora.pro','es.matchora.pro'].includes(embedHost);
-    if(!isMatchora)frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+    frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
     frame.setAttribute('allow','autoplay; encrypted-media; fullscreen; picture-in-picture');
     frame.setAttribute('allowfullscreen','');frame.setAttribute('referrerpolicy','strict-origin-when-cross-origin');frame.className='external-player';
     const current=frame;
@@ -86,7 +83,7 @@ export function createExternalPlayer({container,sources,name,rotateOnReload=fals
   open();
   const connection=watchPlayerConnection({window,document,onOffline,onReconnect:()=>open('reconnect')});
   return {
-    reload(){if(disposed)return;triedRecovery=false;connection.reset();if(rotateOnReload)index=(index+1)%urls.length;open('retry');},
+    reload(){if(disposed)return;triedRecovery=false;connection.reset();open('retry');},
     next(){if(disposed)return;triedRecovery=false;connection.reset();index=(index+1)%urls.length;open();},
     destroy(){disposed=true;connection.destroy();if(frame){frame.onload=null;frame.src='about:blank';frame.remove();}}
   };

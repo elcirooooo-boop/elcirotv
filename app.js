@@ -1,129 +1,63 @@
-import {createExternalPlayer} from './external-player.js?v=20261125r';
 import {matchPath,matchIdFromPath,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261114b';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
-import {createPreparedPlayback} from './prepared-playback.js?v=20261107g';
 
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
-let playerGeneration=0,player,externalActive=false;
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
-let data,selected='',currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
+let data,currentMatch='',tracking,counts=null,presenceQueue=Promise.resolve();
 const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
-const preparedPlayback=createPreparedPlayback((id,{excluded,refresh,signal})=>api('play?source='+encodeURIComponent(id)+'&exclude='+encodeURIComponent(excluded.join(','))+(refresh?'&refresh=1':''),{signal}));
 function link(event){return matchPath(event);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
 function heartbeat(){
-  const payload={session,match:currentMatch,playing:externalActive&&!document.hidden};
+  const payload={session,match:currentMatch,playing:false};
   presenceQueue=presenceQueue.catch(()=>{}).then(()=>api('presence',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).catch(()=>{});
   return presenceQueue;
 }
 function viewerLabel(id){return `<span class="viewer-count" data-viewers="${esc(id)}" title="Personas con la transmisión abierta, aproximadamente">${counts===null?'— viendo ahora':`${counts[id]||0} viendo ahora`}</span>`;}
 async function refreshViewers(){if(document.hidden)return;try{const result=await api('viewers');counts=result.counts;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent=(counts[el.dataset.viewers]||0)+' viendo ahora';});}catch{counts=null;document.querySelectorAll('[data-viewers]').forEach(el=>{el.textContent='Conteo no disponible';});}}
-function stop(){externalActive=false;playerGeneration++;player?.destroy();player=null;const video=document.querySelector('#videoSection video');if(video){video.pause();video.removeAttribute('src');video.load();}selected='';}
 function navigate(href){history.pushState(null,'',href);render();window.scrollTo(0,0);}
 document.addEventListener('click',event=>{const a=event.target.closest('a');if(a&&a.origin===location.origin&&!a.hash&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&event.button===0){event.preventDefault();navigate(a.pathname+a.search);}});
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
-function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
-async function play(signal,signals,{refresh=false,tried=new Set()}={}){
-  stop();selected=signal.id;const generation=playerGeneration,identity=selected;
+function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver en TVF90 ↗</span></button>`).join('');}
+function play(signal){
   updateMatchShare(signal);
-  const section=document.querySelector('#videoSection'),status=document.querySelector('#signalStatus');
-  const retry=section.querySelector('#providerRetry');
-  const retryHint=section.querySelector('#providerRetryHint');
+  const section=document.querySelector('#videoSection');
+  const status=section.querySelector('#signalStatus');
+  const actions=section.querySelector('.video-frame-link');
   section.hidden=false;
-  retry.hidden=false;retryHint.hidden=true;retry.onclick=()=>void play(signal,signals,{refresh:true});
-
-  document.querySelectorAll('[data-signal]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.signal===identity)));
-  const active=()=>playerGeneration===generation&&selected===identity;
-  tried.add(identity);
-  status.textContent=(tried.size>1?'Probando otra transmisión: ':'Preparando la señal: ')+signal.name;
-  const unavailable=()=>{
-    if(!active())return;
-    const next=currentMatch&&navigator.onLine&&signals.find(option=>!tried.has(option.id));
-    if(next)void play(next,signals,{tried});
-    else status.textContent='Señal no disponible. Pulsa Recargar señal para volver a intentarlo.';
-  };
-  const enableControls=()=>{
-    retry.hidden=false;retryHint.hidden=false;
-  };
-  try{
-    const directMatchora=data.provider==='matchora'&&signal.playerUrl;
-    let source=directMatchora?{transport:'embed',url:directMatchora}:null;
-    for(let attempt=0;!source&&attempt<3;attempt++){
-      try{
-        source=await preparedPlayback.read(identity,{refresh:refresh||attempt>0});
-        break;
-      }catch(error){
-        if(!active())return;
-        if(error.status!==503)throw error;
-        if(attempt===2){unavailable();return;}
-        status.textContent='Comprobando la señal de '+signal.name+'…';
-        await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)));
-        if(!active())return;
-      }
-    }
-    if(!active())return;
-    const target=new URL(source.url);
-    if(source.transport!=='embed')throw Error('Reproductor no disponible.');
-    status.textContent='Cargando '+signal.name+'…';
-    const matchoraHosts=['matchora.pro','matchora.to','es.matchora.pro'];
-    const matchora=matchoraHosts.includes(target.hostname);
-    const sources=[{url:target.href}];
-    if(matchora)for(const host of matchoraHosts)if(host!==target.hostname)sources.push({url:'https://'+host+target.pathname});
-    player=createExternalPlayer({container:section.querySelector('.video-frame'),sources,rotateOnReload:matchora,name:signal.name,
-      onLoad:()=>{if(active())status.textContent=signal.name+' · Reproductor externo';}
-    });
-    externalActive=true;
-    retryHint.hidden=false;
-    retry.onclick=()=>player?.reload();
-  }catch(error){if(error.code==='CHANNEL_UNAVAILABLE')unavailable();else if(active())status.textContent=error.message||'No se pudo abrir la señal.';}
-  if(active())section.scrollIntoView({behavior:'smooth',block:'start'});
+  actions.replaceChildren();
+  document.querySelectorAll('[data-signal]').forEach(button=>{
+    button.setAttribute('aria-pressed',String(button.dataset.signal===signal.id));
+  });
+  if(!/^https:\/\/tvf90\.com\/online\.php\?stream=[a-z0-9_-]{1,80}$/i.test(signal.playerUrl||'')){
+    status.textContent='TVF90 aún no publicó un enlace para esta señal.';
+    return;
+  }
+  const watch=document.createElement('a');
+  watch.className='primary-button';
+  watch.href=signal.playerUrl;
+  watch.target='_blank';
+  watch.rel='noopener noreferrer';
+  watch.textContent='Ver '+signal.name+' en TVF90 ↗';
+  actions.append(watch);
+  status.textContent='La transmisión se abre en una pestaña de TVF90.';
 }
 
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap"><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><p id="providerRetryHint" class="signal-status" hidden>Si aparece un aviso del proveedor, prueba otro canal de la lista.</p><div class="status-actions"><button id="providerRetry" type="button" hidden>Recargar señal</button></div></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
-  if(event?.id==='201d6aeccf762aa5424b5f71'){
-    const option=document.createElement('button');
-    option.type='button';
-    option.textContent='Seguir con Barça Live · Cobertura oficial en YouTube';
-    main.querySelector('.status-actions').append(option);
-    option.onclick=()=>{
-      stop();
-      const frame=document.createElement('iframe');
-      frame.title='Barça Live · Sabah vs Barcelona';
-      frame.className='external-player';
-      frame.referrerPolicy='strict-origin-when-cross-origin';
-      frame.allow='encrypted-media; fullscreen; picture-in-picture';
-      frame.allowFullscreen=true;
-      frame.src='https://www.youtube-nocookie.com/embed/yNw3UYyP-Uc';
-      main.querySelector('.video-frame').replaceChildren(frame);
-      main.querySelector('#signalStatus').textContent='Barça Live · Cobertura oficial del club';
-      main.querySelector('#providerRetry').hidden=true;
-      main.querySelector('#providerRetryHint').hidden=true;
-    };
-  }
-  if(/^https:\/\/ondemand\.st\/live\/m[0-9]+$/.test(event?.providerPage||'')){
-    const fallback=document.createElement('a');
-    fallback.className='primary-button';
-    fallback.href=event.providerPage;
-    fallback.target='_blank';
-    fallback.rel='noopener noreferrer';
-    fallback.textContent='Ver en OnDemand ↗';
-    main.querySelector('.status-actions').append(fallback);
-  }
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="status-actions video-frame-link"></div><p id="signalStatus" class="signal-status" role="status"></p></section><section class="match-channels"><a class="match-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer">⚽ Sigue los partidos en Telegram ↗</a><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   if(telegramBrowser&&signals.length){
     const advice=document.createElement('p');advice.className='player-note';
-    advice.textContent='Si el vídeo se queda en negro en Telegram, toca ⋯ y elige «Abrir en el navegador».';
+    advice.textContent='Si TVF90 no abre desde Telegram, toca ⋯ y elige «Abrir en el navegador».';
     main.querySelector('#videoSection').prepend(advice);
   }
   if(event){
@@ -159,16 +93,9 @@ function chooser(event,signals){
     main.querySelector('#videoSection').before(sharing);
     document.title=getShareData().title;
   }
-  const initial=event?sharedSignal(event,location.search)||signals[0]:signals[0];
-  if(initial&&data.provider==='streamxhd'&&!document.querySelector('link[data-player-preconnect]')){
-    const connection=document.createElement('link');
-    connection.rel='preconnect';
-    connection.href='https://streamxhd.sbs';
-    connection.dataset.playerPreconnect='';
-    document.head.append(connection);
-  }
-  if(initial&&!initial.playerUrl&&data.provider!=='futbolvivo')void preparedPlayback.prepare(initial.id);
-  main.querySelectorAll('[data-signal]').forEach(b=>{b.onfocus=()=>{if(!signals.find(s=>s.id===b.dataset.signal)?.playerUrl)void preparedPlayback.prepare(b.dataset.signal);};b.onclick=()=>play(signals.find(s=>s.id===b.dataset.signal),signals);});
+  main.querySelectorAll('[data-signal]').forEach(button=>{
+    button.onclick=()=>play(signals.find(signal=>signal.id===button.dataset.signal));
+  });
 }
 function listing(channels=false){
   const leagueOptions=()=>'<option value="">Todas las competiciones</option>'+[...new Set(visibleAgendaEvents(data.events).map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('');
@@ -186,7 +113,7 @@ function listing(channels=false){
 }
 async function render(){
   refreshListing=()=>{};
-  stop();currentMatch='';
+  currentMatch='';
   updateMatchShare=()=>{};
   document.title='El Ciro · Deportes en directo';
   document.querySelectorAll('.main-nav a').forEach(a=>{if(a.pathname===location.pathname)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
@@ -201,16 +128,16 @@ async function render(){
       const requested=new URLSearchParams(location.search).get('canal');
       if(requested){
         const signal=sharedSignal(event,location.search);
-        if(signal)void play(signal,event.signals);
+        if(signal)play(signal);
         else{
           const notice=document.createElement('p');notice.className='player-note';notice.setAttribute('role','status');notice.textContent='El canal compartido ya no está disponible para este partido. Selecciona otro canal de la lista.';main.querySelector('.match-channels').before(notice);
         }
-      }else if(event.signals[0])void play(event.signals[0],event.signals);
+      }else if(event.signals[0])play(event.signals[0]);
     }else if(location.pathname.startsWith('/canal/')){
-      const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);
+      const channel=data.channels.find(c=>'/canal/'+c.id===location.pathname);if(!channel)throw Error('Este canal ya no está publicado.');chooser(null,[channel]);play(channel);
     }else throw Error('No encontramos esta página.');
     void heartbeat().then(refreshViewers);
-    if(!tracking)tracking=setInterval(()=>{if(document.hidden&&!externalActive)return;void heartbeat().then(refreshViewers);},30000);
+    if(!tracking)tracking=setInterval(()=>{if(document.hidden)return;void heartbeat().then(refreshViewers);},30000);
   }catch(error){main.innerHTML=intro('Vuelve a intentarlo.',error.message)+'<a class="back-link" href="/">← Ver partidos</a><button id="reload" class="primary-button">Actualizar agenda</button>';main.querySelector('#reload').onclick=()=>{data=null;void render();};}
 }
 setInterval(()=>updateLiveStatuses(main),15000);

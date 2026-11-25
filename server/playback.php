@@ -30,9 +30,9 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         'sourceKey'=>fingerprint($page),'expiresAt'=>iso($expiry),'renewInSeconds'=>300];
 }
 function external_playback(array $signal): array {
-    $url=$signal['url']??'';
-    if(!matchora_embed($url)&&!damitv_player_url($url))throw new RuntimeException('CHANNEL_UNAVAILABLE');
-    return ['transport'=>'embed','name'=>$signal['name'],'url'=>$url];
+    $url=tvf90_public_url($signal['url']??'');
+    if($url===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    return ['transport'=>'external','name'=>$signal['name'],'url'=>$url];
 }
 function published_player_config(string $html): ?array {
     if(!preg_match('~window\._econfig\s*=\s*["\']([A-Za-z0-9+/=]+)["\']~',$html,$m))return null;
