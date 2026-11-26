@@ -94,7 +94,7 @@ function normalize_agenda(array $payload,?int $now=null,bool $publishedOnly=fals
         if($publishedOnly&&preg_match('/^(.+?)\s+[-–—]\s+(.+)$/u',$title,$parts)){$league=trim($parts[1]);$match=trim($parts[2]);}
         $id=fingerprint(iso($start).'|'.slugify($league).'|'.slugify($match));$signals=[];$seen=[];
         foreach(rows($a['embeds']??[]) as $i=>$embed){$embed=attrs($embed);$url=$embed['embed_iframe']??$embed['iframe']??$embed['url']??'';if(!$url)continue;
-            try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(!$publishedOnly&&isset($query['r']))$url=base64_decode($query['r'],true)?:'';safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;if($publishedOnly)$url=fulbito_canonical($url);}catch(Throwable){continue;}
+            try{$url=absolute_url($url,$publishedOnly?'https://fulbitotv.xyz/':'https://rojadirectatvplay.org/');parse_str(parse_url($url,PHP_URL_QUERY)??'',$query);if(!$publishedOnly&&isset($query['r'])&&is_string($query['r']))$url=trim(base64_decode($query['r'],true)?:''," \t\r\n");safe_url($url);if($publishedOnly&&!fulbito_player_url($url))continue;if($publishedOnly)$url=fulbito_canonical($url);}catch(Throwable){continue;}
             if(isset($seen[$url]))continue;$seen[$url]=true;$signals[]=['id'=>fingerprint($url),'name'=>mb_substr($embed['embed_name']??$embed['name']??'Opción '.($i+1),0,100),'url'=>$url,'lang'=>$embed['lang']??''];
             if($publishedOnly){$signals[count($signals)-1]['publishedOnly']=true;$signals[count($signals)-1]['id']=fulbito_signal_id($url);}
         }
@@ -222,17 +222,17 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-tvf90-public-v1');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
-    $lock=fopen(storage().'/agenda-tvf90-public-v1.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    $old=cached_read('agenda-tvf90-public-v2');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $lock=fopen(storage().'/agenda-tvf90-public-v2.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'tvf90','day'=>today(),'events'=>[],'channels'=>tvf90_catalog(),'updatedAt'=>iso(time()),'stale'=>true];}
     try{$feeds=[];
-        $feeds[]=agenda_feed('tvf90-public-v1',fn()=>classic_events());
+        $feeds[]=agenda_feed('tvf90-public-v2',fn()=>classic_events());
         $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
         if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-matchora-v2')??cached_read('agenda-tvf90-direct-v1');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=tvf90_catalog();
+        $previous=$old??cached_read('agenda-tvf90-public-v1')??cached_read('agenda-matchora-v2')??cached_read('agenda-tvf90-direct-v1');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=tvf90_catalog();
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>3,'provider'=>'tvf90','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-public-v1',$data);return $data;
+        $data=['version'=>3,'provider'=>'tvf90','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-public-v2',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
