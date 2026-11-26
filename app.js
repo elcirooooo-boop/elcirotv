@@ -54,7 +54,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   document.querySelectorAll('[data-signal]').forEach(button=>{
     button.setAttribute('aria-pressed',String(button.dataset.signal===signal.id));
   });
-  if(!/^https:\/\/tvf90\.com\/online\.php\?stream=[a-z0-9_-]{1,80}$/i.test(signal.playerUrl||'')){
+  if(!/^https:\/\/tvf90\.com\/(?:online|1|2|3|5|hd|canal|plus1)\.php\?stream=[a-z0-9_-]{1,80}$/i.test(signal.playerUrl||'')){
     status.textContent='TVF90 aún no publicó un enlace para esta señal.';
     return;
   }

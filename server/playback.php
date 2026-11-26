@@ -30,8 +30,8 @@ function streamxhd_relay_playback(array $signal,bool $refresh=false): array {
         'sourceKey'=>fingerprint($page),'expiresAt'=>iso($expiry),'renewInSeconds'=>300];
 }
 function external_playback(array $signal): array {
-    $url=tvf90_public_url($signal['url']??'');
-    if($url===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
+    $url=$signal['playerUrl']??$signal['url']??'';
+    if(tvf90_public_url($url)===null)throw new RuntimeException('CHANNEL_UNAVAILABLE');
     return ['transport'=>'external','name'=>$signal['name'],'url'=>$url];
 }
 function published_player_config(string $html): ?array {

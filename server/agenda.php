@@ -57,17 +57,25 @@ function classic_events(): array {
     $events=normalize_agenda(fetch_json('https://api.wqxag.com/diaries.json'));
     foreach($events as &$event){
         $signals=[];
+        $preferred=[];
         foreach($event['signals'] as $signal){
-            $url=tvf90_public_url($signal['url']);
-            if($url===null||isset($signals[$url]))continue;
-            $signal['url']=$url;
+            $url=$signal['url'];
+            $publicUrl=tvf90_public_url($url);
+            if($publicUrl===null||isset($signals[$url]))continue;
             $signal['playerUrl']=$url;
             $signal['provider']='tvf90';
             $signal['publishedOnly']=true;
             unset($signal['sources']);
             $signals[$url]=$signal;
+            if($publicUrl==='https://tvf90.com/online.php?stream=winsports2'){
+                $primary='https://tvf90.com/online.php?stream=winsportsplus';
+                $preferred[$primary]=array_replace($signal,[
+                    'id'=>fingerprint('tvf90:'.$primary),'name'=>'Win Sports Plus · Principal',
+                    'url'=>$primary,'playerUrl'=>$primary
+                ]);
+            }
         }
-        $event['signals']=array_values($signals);
+        $event['signals']=array_values($preferred+$signals);
     }
     unset($event);
     return $events;
@@ -222,17 +230,17 @@ function retain_agenda_links(array $events,array $previous): array {
     }return $events;
 }
 function agenda(): array {
-    $old=cached_read('agenda-tvf90-public-v2');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
-    $lock=fopen(storage().'/agenda-tvf90-public-v2.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
+    $old=cached_read('agenda-tvf90-public-v3');if(($old['version']??0)===3&&($old['day']??'')===today()&&time()-($old['loaded']??0)<90)return $old;
+    $lock=fopen(storage().'/agenda-tvf90-public-v3.lock','c');if(!$lock)throw new RuntimeException('CACHE_LOCK');
     if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);if(($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);return ['provider'=>'tvf90','day'=>today(),'events'=>[],'channels'=>tvf90_catalog(),'updatedAt'=>iso(time()),'stale'=>true];}
     try{$feeds=[];
-        $feeds[]=agenda_feed('tvf90-public-v2',fn()=>classic_events());
+        $feeds[]=agenda_feed('tvf90-public-v3',fn()=>classic_events());
         $feeds=array_values(array_filter($feeds,fn($feed)=>$feed!==null));$unavailable=!$feeds;
         if($unavailable&&($old['day']??'')===today()&&time()-($old['loaded']??0)<1800)return array_replace($old,['stale'=>true]);
-        $previous=$old??cached_read('agenda-tvf90-public-v1')??cached_read('agenda-matchora-v2')??cached_read('agenda-tvf90-direct-v1');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=tvf90_catalog();
+        $previous=$old??cached_read('agenda-tvf90-public-v2')??cached_read('agenda-tvf90-public-v1')??cached_read('agenda-matchora-v2')??cached_read('agenda-tvf90-direct-v1');$events=retain_agenda_links(merge_agendas($feeds),$previous['events']??[]);$channels=tvf90_catalog();
         if($old)remember_published_signals($old['events']??[],(int)($old['loaded']??0));
         remember_published_signals(array_merge($events,[['signals'=>$channels]]));
-        $data=['version'=>3,'provider'=>'tvf90','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-public-v2',$data);return $data;
+        $data=['version'=>3,'provider'=>'tvf90','day'=>today(),'events'=>$events,'channels'=>$channels,'updatedAt'=>iso(time()),'loaded'=>time(),'stale'=>$unavailable];cached_write('agenda-tvf90-public-v3',$data);return $data;
     }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 function public_agenda(array $data): array {
