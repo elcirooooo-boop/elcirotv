@@ -9,7 +9,7 @@ import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 document.addEventListener('error',handleBadgeError,true);
 const main=document.querySelector('#main');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const intro=(title,sub)=>`<section class="intro compact"><p class="eyebrow">EL CIRO TV</p><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
+const intro=(title,sub)=>`<section class="intro compact"><h1>${esc(title)}</h1><p>${esc(sub)}</p></section>`;
 let playerFullscreen,stopSignalRecovery=()=>{};
 let updateMatchShare=()=>{};
 let refreshListing=()=>{},agendaLoading=false;
@@ -156,17 +156,50 @@ function chooser(event,signals){
     button.onclick=()=>play(signals.find(signal=>signal.id===button.dataset.signal),{reveal:true});
   });
 }
+function fixtureCard(event){
+  const badges=teamBadges(event);
+  return `<a class="fixture" href="${link(event)}">
+    <div class="fixture-art">${badges||`<span class="fixture-competition">${esc(event.league)}</span>`}${liveIndicator(event)}</div>
+    <div class="fixture-info">
+      <span class="fixture-league">${esc(event.league)}</span>
+      <h4>${esc(event.title)}</h4>
+      <div class="fixture-time">${scheduleMarkup(event)}</div>
+      <div class="fixture-meta">${viewerLabel(event.id)}<span>${event.signals.length} ${event.signals.length===1?'canal':'canales'}</span></div>
+    </div>
+  </a>`;
+}
+
+function fixtureAgenda(events){
+  const days=new Map();
+  for(const event of events){
+    const {key,label}=scheduleDay(event);
+    if(!days.has(key)) days.set(key,{label,events:[]});
+    days.get(key).events.push(event);
+  }
+  return [...days.values()].map(day=>`<section class="agenda-day">
+    <h3 class="agenda-date">${esc(day.label)}</h3>
+    <div class="fixture-grid">${day.events.map(fixtureCard).join('')}</div>
+  </section>`).join('');
+}
+
 function listing(channels=false){
   const leagueOptions=()=>'<option value="">Todas las competiciones</option>'+[...new Set(visibleAgendaEvents(data.events).map(e=>e.league))].map(l=>`<option>${esc(l)}</option>`).join('');
-  main.innerHTML=intro(channels?'Tus canales.':'Tu próximo partido.',channels?'Las señales de los partidos y el catálogo de canales disponibles.':'Elige tu partido y disfruta.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido o canal" placeholder="${channels?'Buscar canal…':'Equipo, liga o canal…'}"></label>${channels?'':`<select id="league" aria-label="Filtrar por competición">${leagueOptions()}</select>`}</div><div class="section-heading"><h2>${channels?'Canales':'Partidos disponibles'}</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
+  main.innerHTML=intro(channels?'Canales':'Partidos',channels?'Encuentra tu señal.':'Tu agenda de deportes en directo.')+`<div class="toolbar"><label class="search"><input id="search" type="search" aria-label="Buscar partido o canal" placeholder="${channels?'Buscar canal…':'Equipo, liga o canal…'}"></label>${channels?'':`<select id="league" aria-label="Filtrar por competición">${leagueOptions()}</select>`}</div><div class="section-heading"><h2>${channels?'Señales disponibles':'Agenda'}</h2><span id="count"></span></div><div id="results"></div>${data.stale&&data.events.length?'<p role="status">Mostrando la última agenda disponible.</p>':''}`;
   const update=()=>{
     const term=main.querySelector('#search').value.toLocaleLowerCase(),league=main.querySelector('#league')?.value;
     const events=channels?[]:visibleAgendaEvents(data.events);
     const values=channels?data.channels.filter(c=>c.name.toLowerCase().includes(term)):chronologicalEvents(events.filter(e=>(!league||e.league===league)&&`${e.title} ${e.league} ${e.signals.map(s=>s.name).join(' ')}`.toLowerCase().includes(term)));
     main.querySelector('#count').textContent=values.length+(channels?' señales':' partidos');
-    let previousDay='';
-    main.querySelector('#results').innerHTML=values.length?(channels?`<div class="channel-grid">${values.map(c=>`<a class="channel-card" href="${channelPath(c,data.channels)}"><h2>${esc(c.name)}</h2><span class="text-link">Elegir señal ↗</span></a>`).join('')}</div>`:`<div class="event-list">${values.map(e=>{const badges=teamBadges(e),day=scheduleDay(e);const heading=day.key!==previousDay?`<h3 class="event-day">${esc(day.label)}<span>Horario de Venezuela · de menor a mayor hora</span></h3>`:'';previousDay=day.key;return `${heading}<a class="event-row${badges?' has-teams':''}" href="${link(e)}"><span class="event-time">${scheduleMarkup(e)}</span>${badges}<div class="event-description"><h3>${esc(e.title)}</h3><p>${esc(e.league)}</p>${liveIndicator(e)}${viewerLabel(e.id)}</div><span class="event-channel-choice"><span>${e.signals.length} canales</span><span>›</span></span></a>`;}).join('')}</div>`):'<div class="empty"><h2>No hay resultados</h2><p>Prueba otra búsqueda o vuelve a consultar la agenda.</p></div>';
-    if(!channels&&!events.length)main.querySelector('#results').innerHTML=`<div class="empty"><h2>Agenda pendiente de actualizar</h2><p>${data.stale?'La fuente no está disponible ahora.':'La fuente todavía no ha publicado los partidos de hoy.'} Puedes seguir viendo los canales disponibles.</p><a class="text-link" href="/canales">Ver canales ↗</a></div>`;
+    const results=main.querySelector('#results');
+    if(!channels&&!events.length){
+      results.innerHTML=`<div class="empty"><h2>Agenda pendiente de actualizar</h2><p>${data.stale?'La fuente no está disponible ahora.':'La fuente todavía no ha publicado los partidos de hoy.'} Puedes seguir viendo los canales disponibles.</p><a class="text-link" href="/canales">Ver canales ↗</a></div>`;
+    }else if(!values.length){
+      results.innerHTML='<div class="empty"><h2>No hay resultados</h2><p>Prueba otra búsqueda.</p></div>';
+    }else if(channels){
+      results.innerHTML=`<div class="channel-grid">${values.map(c=>`<a class="channel-card" href="${channelPath(c,data.channels)}"><h3>${esc(c.name)}</h3><span class="text-link">Ver canal ↗</span></a>`).join('')}</div>`;
+    }else{
+      results.innerHTML=fixtureAgenda(values);
+    }
   };main.querySelector('#search').oninput=update;if(main.querySelector('#league'))main.querySelector('#league').onchange=update;update();
   refreshListing=()=>{const select=main.querySelector('#league');if(select){const value=select.value;select.innerHTML=leagueOptions();select.value=[...select.options].some(o=>o.value===value)?value:'';}update();};
 }
