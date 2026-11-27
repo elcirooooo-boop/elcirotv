@@ -3,7 +3,7 @@ import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
 import {matchPath,matchFromPath,channelPath,channelFromPath,hasSharedSignal,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js?v=20261125ai';
 import {matchSchedule,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261127a';
-import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
+import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261127c';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 
 document.addEventListener('error',handleBadgeError,true);
@@ -165,10 +165,11 @@ function chooser(event,signals){
 function fixtureCard(event){
   const badges=teamBadges(event);
   return `<a class="fixture" href="${link(event)}">
-    <div class="fixture-art">${badges||`<span class="fixture-competition">${esc(event.league)}</span>`}${liveIndicator(event)}</div>
+    <div class="fixture-art">${badges||`<span class="fixture-competition">${esc(event.league)}</span>`}</div>
     <div class="fixture-info">
       <span class="fixture-league">${esc(event.league)}</span>
       <h4>${esc(event.title)}</h4>
+      ${liveIndicator(event)}
       <div class="fixture-time">${scheduleMarkup(event)}</div>
       <div class="fixture-meta">${viewerLabel(event.id)}<span>${event.signals.length} ${event.signals.length===1?'canal':'canales'}</span></div>
     </div>

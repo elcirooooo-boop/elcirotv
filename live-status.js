@@ -32,8 +32,7 @@ export function isEstimatedLive(event,now=Date.now()){
 export function liveIndicator(event,now=Date.now()){
   if(typeof event.providerLive==='boolean')return `<span class="event-live" data-provider-live="${String(event.id).replace(/[^a-f0-9]/g,'')}" title="Estado publicado por el proveedor"${event.providerLive?'':' hidden'}><span class="live-pill">EN VIVO</span></span>`;
   const window=liveWindow(event);if(!window)return '';
-  const ends=[['Venezuela','America/Caracas'],['España','Europe/Madrid']].map(([label,timeZone])=>`${label}: ${new Intl.DateTimeFormat('es',{timeZone,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:false}).format(window.end)}`).join(' · ');
-  return `<span class="event-live" data-live-start="${window.start}" data-live-end="${window.end}" title="Según el horario de inicio. Final estimado — ${ends}"${isEstimatedLive(event,now)?'':' hidden'}><span class="live-pill">EN VIVO</span><span class="live-estimate">horario estimado</span></span>`;
+  return `<span class="event-live" data-live-start="${window.start}" data-live-end="${window.end}"${isEstimatedLive(event,now)?'':' hidden'}><span class="live-pill">EN VIVO</span></span>`;
 }
 export function updateLiveStatuses(root,now=Date.now()){
   for(const indicator of root.querySelectorAll('[data-live-start][data-live-end]')){

@@ -92,8 +92,7 @@
 }
 .fixture:nth-child(3n+2) .fixture-art { --team-home: #274643; --team-away: #52374c; }
 .fixture:nth-child(3n+3) .fixture-art { --team-home: #453b52; --team-away: #2b455a; }
-.fixture-art .event-live { position: absolute; top: 8px; left: 8px; margin: 0; }
-.fixture-art .live-estimate { display: none; }
+.fixture-info .event-live { margin: 0; }
 .live-pill { background: #45262e; color: #ffb8be; }
 .fixture-art .match-badges { width: 86%; justify-content: space-evenly; }
 .fixture-art .team-badge { width: 34%; height: auto; aspect-ratio: 1; }
