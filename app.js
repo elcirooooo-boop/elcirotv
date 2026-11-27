@@ -2,7 +2,7 @@ import {watchPlayerConnection} from './external-player.js?v=20261125ae';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
 import {matchPath,matchFromPath,channelPath,channelFromPath,hasSharedSignal,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js?v=20261125ai';
 import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
-import {teamBadges,handleBadgeError} from './team-badges.js?v=20261125y';
+import {teamBadges,handleBadgeError} from './team-badges.js?v=20261127a';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
 

@@ -1,5 +1,5 @@
 import baseCatalogue from './team-badges-data.js?v=20261107';
-import extraCatalogue from './team-badges-extra.js?v=20261125y';
+import extraCatalogue from './team-badges-extra.js?v=20261127a';
 const catalogue=[...baseCatalogue,...extraCatalogue];
 import countryFlags from './country-flags-data.js';
 
@@ -88,6 +88,15 @@ const aliases = {
   'soccer:men:261':['Dundee FC'],
   'soccer:men:314':['Lincoln'],
   'soccer:men:190':['New York Red Bulls'],
+  'soccer:men:10597':['Ajax II','Ajax B'],
+  'soccer:men:145':['Groningen'],
+  'soccer:men:11487':['Sabadell','CE Sabadell'],
+  'soccer:men:10307':['Manta'],
+  'soccer:men:9903':['Racing de Montevideo'],
+  'soccer:men:5492':['Liverpool Montevideo'],
+  'soccer:men:22022':['Al Quadisiya','Al Qadisiyah'],
+  'soccer:men:21827':['Al-Fayha','Al Feiha'],
+  'soccer:men:130899':['NEOM'],
 };
 const index = new Map();
 const candidates = new Map();
@@ -103,7 +112,7 @@ for(const team of catalogue) {
 
 export function matchTeams(event) {
   let title = String(event.title || '').replace(/^(?:NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]\s*/i,'');
-  title=title.replace(/^Mexico City Game\s*[-–—:]\s*/i,'');
+  title=title.replace(/^(?:Mexico City Game|B[eé]isbol Colombiano)\s*[-–—:]\s*/i,'');
   // Feed headings precede the actual national-team matchup.
   if(/^(?:Rugby|Voleibol|Volleyball|Baloncesto)\s*[-–—:]/i.test(title))title=title.split(/\s+[-–—]\s+/).at(-1);
   const parts = title.split(/\s+(?:vs?\.?|versus)\s+/iu).map(name=>name.trim());
@@ -180,12 +189,19 @@ export function teamBadges(event) {
   }
   if(!names.length||competition.individual)return competitionMarkup(competition);
   const league = /^(NFL|NBA|WNBA|NHL|MLB)\s*[-–—:]/i.exec(event.title)?.[1] || event.league;
+  const colombianBaseball=/^beisbol colombiano\b/.test(key(event.title));
+  // This feed labels the Uruguayan matchup with a generic division name.
+  const racingLiverpool=key(league)==='primera division'&&names.map(key).sort().join(':')==='liverpool:racing';
   const badge = (name,index) => {
     let context=(league||'')+' '+(event.sport||'');
     const opponent=names[1-index];
     if(key(league)==='serie a'&&teamBadge(opponent)?.leagues?.includes('ecu.1'))context='Ecuador';
     if(key(league)==='segunda division'&&teamBadge(opponent)?.leagues?.includes('uru.2'))context='Segunda División Uruguay';
-    const team=key(name)==='atenas'&&/uruguay/i.test(context)?teamBadge('Atenas de San Carlos',context):teamBadge(name,context);
+    if(colombianBaseball)context='Béisbol Colombiano';
+    let clubName=name;
+    if(racingLiverpool)clubName=key(name)==='racing'?'Racing de Montevideo':'Liverpool Montevideo';
+    if(key(name)==='atenas'&&/uruguay/i.test(context))clubName='Atenas de San Carlos';
+    const team=teamBadge(clubName,context);
     const initials = name.split(/\s+/).filter(Boolean).slice(0,2).map(word=>[...word][0]).join('').toLocaleUpperCase();
     const supplied=suppliedLogo(event[index===0?'homeLogo':'awayLogo']);
     const known=team&&(suppliedLogo(team.logo)||(/^\/logos\/teams\/[a-z0-9-]+\.(?:png|jpeg)$/.test(team.logo)?team.logo:null));
