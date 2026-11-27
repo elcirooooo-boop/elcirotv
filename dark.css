@@ -40,6 +40,11 @@
   text-wrap: balance;
 }
 .intro p:not(.eyebrow) { font-size: 15px; max-width: none; }
+.match-details { display: grid; gap: 12px; }
+.match-league { font-size: 15px; font-weight: 650; }
+.match-schedule { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.match-schedule .schedule-zone { font-size: 14px; }
+.match-schedule .schedule-country { font-size: 12px; }
 .section-heading h2 { font-size: 23px; font-weight: 650; }
 .toolbar { gap: 12px; margin-bottom: 30px; }
 .search, .toolbar select {

@@ -1,7 +1,7 @@
 import {watchPlayerConnection} from './external-player.js?v=20261125ae';
 import {createPlayerFullscreen} from './fullscreen.js?v=20261125z';
 import {matchPath,matchFromPath,channelPath,channelFromPath,hasSharedSignal,sharedSignal,matchShareData,copyShareLink,shareMatch} from './share.js?v=20261125ai';
-import {matchSchedule,scheduleText,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
+import {matchSchedule,chronologicalEvents,scheduleDay,visibleAgendaEvents} from './schedule.js?v=20261112k';
 import {teamBadges,handleBadgeError} from './team-badges.js?v=20261127a';
 import {liveIndicator,updateLiveStatuses} from './live-status.js?v=20261109n';
 import {requestJSON,apiURL} from './api-client.js?v=20261107h';
@@ -102,8 +102,23 @@ function play(signal,{reveal=false,recoveryAttempt=false}={}){
   if(reveal)requestAnimationFrame(()=>{if(frame.isConnected)player.parentElement.scrollIntoView({block:'start'});});
 }
 
+function matchIntro(event){
+  const badges=teamBadges(event);
+  const schedule=scheduleMarkup(event);
+  return `<section class="intro compact">
+    ${badges?`<div class="match-team-heading">${badges}</div>`:''}
+    <h1>${esc(event.title)}</h1>
+    ${liveIndicator(event)}
+    <div class="match-details">
+      <div class="match-league">${esc(event.league)}</div>
+      ${schedule?`<div class="match-schedule">${schedule}</div>`:''}
+    </div>
+  </section>`;
+}
+
 function chooser(event,signals){
-  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${intro(event?.title||signals[0]?.name||'Canal',event?`${event.league} · ${scheduleText(event)}`:'Elige una señal para reproducir.')}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si el vídeo se queda en negro o aparece un error, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button><a class="telegram-join player-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer"><img class="telegram-icon" src="/logos/telegram.svg" width="23" height="23" alt="">Unirme al canal de Telegram</a></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
+  const heading=event?matchIntro(event):intro(signals[0]?.name||'Canal','Elige una señal para reproducir.');
+  main.innerHTML=`<a class="back-link" href="${event?'/':'/canales'}">← ${event?'Todos los partidos':'Todos los canales'}</a>${heading}${event?viewerLabel(event.id):''}<section id="videoSection" hidden><div class="video-wrap" hidden><div class="video-frame"></div></div><p id="signalStatus" class="signal-status" role="status"></p><div data-signal-recovery hidden><p class="signal-status">Si el vídeo se queda en negro o aparece un error, pulsa <strong>Recargar señal</strong>.</p><div class="status-actions"><button type="button">Recargar señal</button><a class="telegram-join player-telegram" href="https://t.me/elasdelfutbol" target="_blank" rel="noopener noreferrer"><img class="telegram-icon" src="/logos/telegram.svg" width="23" height="23" alt="">Unirme al canal de Telegram</a></div></div><button type="button" class="primary-button fullscreen-control" data-fullscreen hidden>Pantalla completa</button></section><section class="match-channels"><div class="section-heading"><h2>Canales disponibles</h2><span>${signals.length} opciones</span></div><p class="player-note">${data.provider==='futbolvivo'?'Selecciona una señal para verla aquí. Si alguna está bloqueada, prueba otra opción del partido.':"Selecciona el canal con el que quieres ver "+(event?'este partido':'la transmisión')+"."}</p>${signals.length?`<div class="channel-grid">${signalCards(signals)}</div>`:'<div class="empty"><h2>Señales por anunciar</h2><p>Vuelve a consultar la agenda más tarde.</p></div>'}</section>`;
   const section=main.querySelector('#videoSection');
   playerFullscreen=createPlayerFullscreen({section,button:section.querySelector('[data-fullscreen]')});
   if(telegramBrowser&&signals.length){
@@ -112,9 +127,6 @@ function chooser(event,signals){
     main.querySelector('#videoSection').prepend(advice);
   }
   if(event){
-    main.querySelector('.intro h1').insertAdjacentHTML('afterend',liveIndicator(event));
-    const badges=teamBadges(event);
-    if(badges)main.querySelector('.intro h1').insertAdjacentHTML('beforebegin',`<div class="match-team-heading">${badges}</div>`);
     let channel=sharedSignal(event,location.search)||signals[0];
     const getShareData=()=>matchShareData(event,location.origin,channel,data.events);
     const sharing=document.createElement('section');sharing.className='match-sharing';sharing.setAttribute('aria-label','Compartir este partido');
