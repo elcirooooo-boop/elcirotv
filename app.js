@@ -17,7 +17,6 @@ let data,currentMatch='',reportedMatch='',tracking,counts=null,presenceQueue=Pro
 const session=crypto.randomUUID();
 const phpAPI=document.querySelector('meta[name="api-runtime"]')?.content==='php';
 const telegramBrowser=typeof window.TelegramWebviewProxy?.postEvent==='function'||/\bTelegram\b/i.test(navigator.userAgent);
-const appleMobile=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 async function api(path,options){return requestJSON(path,options,{php:phpAPI});}
 function link(event){return matchPath(event,data.events);}
 function scheduleMarkup(event){return matchSchedule(event).map(part=>`<span class="schedule-zone"><span class="schedule-country">${esc(part.label)}</span><time datetime="${esc(event.startsAt)}">${esc(part.date)} · ${esc(part.time)}</time></span>`).join('');}
@@ -36,7 +35,7 @@ document.addEventListener('click',event=>{const a=event.target.closest('a');if(a
 addEventListener('popstate',render);
 async function load(){data=await api('agenda');}
 function signalCards(signals){return signals.map((s,i)=>`<button class="channel-card signal-button" data-signal="${esc(s.id)}" aria-pressed="false"><span class="channel-option">Opción ${i+1}</span><h2>${esc(s.name)}</h2><span class="text-link">Ver aquí</span></button>`).join('');}
-function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={}){
+function play(signal,{reveal=false,recoveryAttempt=false}={}){
   stopSignalRecovery();
   stopSignalRecovery=()=>{};
   updateMatchShare(signal);
@@ -61,12 +60,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   const frame=document.createElement('iframe');
   frame.className='external-player';
   frame.title='Reproductor de TVF90 · '+signal.name;
-  const url=new URL(signal.playerUrl);
-  // TVF90's public pages for these channels embed this same player.
-  // On iPhone, load it in one frame and keep the full player for manual recovery.
-  const useSingleFrame=appleMobile&&!standardPlayer&&['dsports2','teleamazonas'].includes(url.searchParams.get('stream'));
-  if(useSingleFrame)url.pathname='/5.php';
-  frame.src=url.href;
+  frame.src=signal.playerUrl;
   frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';
   frame.allowFullscreen=true;
   frame.referrerPolicy='strict-origin-when-cross-origin';
@@ -77,7 +71,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   const retryOnce=()=>{
     clearStartup();
     if(!recoveryAttempt&&frame.isConnected&&!document.hidden&&navigator.onLine){
-      play(signal,{standardPlayer:useSingleFrame,recoveryAttempt:true});
+      play(signal,{recoveryAttempt:true});
     }
   };
   frame.addEventListener('load',()=>{
@@ -91,7 +85,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
       status.textContent='Sin conexión. La señal se recargará cuando vuelva.';
     },
     onReconnect:()=>{
-      if(frame.isConnected)play(signal,{standardPlayer:useSingleFrame});
+      if(frame.isConnected)play(signal);
     },
   });
   stopSignalRecovery=()=>{
@@ -102,7 +96,7 @@ function play(signal,{reveal=false,standardPlayer=false,recoveryAttempt=false}={
   if(!recoveryAttempt&&navigator.onLine)startupTimeout=setTimeout(retryOnce,20000);
   player.append(frame);
   if(tracking&&currentMatch!==reportedMatch)void heartbeat().then(refreshViewers);
-  reload.onclick=()=>play(signal,{standardPlayer:useSingleFrame});
+  reload.onclick=()=>play(signal);
   recovery.hidden=false;
   fullscreen.hidden=false;
   if(reveal)requestAnimationFrame(()=>{if(frame.isConnected)player.parentElement.scrollIntoView({block:'start'});});
